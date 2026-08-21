@@ -203,8 +203,18 @@
     <dialog id="bookingModal" class="modal">
       <form method="dialog" id="bookingForm">
         <input type="hidden" id="bookingId" />
+        <input type="hidden" id="bookingAgencyId" />
         <div class="modal-head"><div><span class="eyebrow">AGENCIA / CLIENTE</span><h3 id="bookingModalTitle">Agregar agencia / cliente</h3></div><button class="icon-btn square" type="button" data-close="bookingModal">×</button></div>
-        <div class="form-grid"><label class="full"><span>Nombre</span><input id="bookingName" required placeholder="Ej. Turismo Rosario" /></label><label><span>Total de la reserva</span><input id="bookingTotal" type="number" min="0" step="0.01" /></label><label><span>Notas</span><input id="bookingNotes" /></label></div>
+        <div class="form-grid">
+          <label class="full"><span>Nombre</span><input id="bookingName" required autocomplete="off" placeholder="Ej. Turismo Rosario" /></label>
+          <div class="full agency-picker-wrap" id="agencyPickerWrap">
+            <span class="field-label">Agencias guardadas</span>
+            <p class="agency-picker-help">Escribe el nombre o elige una de las agencias que ya existen en la base de datos.</p>
+            <div class="agency-suggestions" id="agencySuggestions"></div>
+          </div>
+          <label><span>Total de la reserva</span><input id="bookingTotal" type="number" min="0" step="0.01" /></label>
+          <label><span>Notas</span><input id="bookingNotes" /></label>
+        </div>
         <div class="modal-actions"><button class="ghost-btn" type="button" data-close="bookingModal">Cancelar</button><button class="primary-btn" type="submit">Guardar</button></div>
       </form>
     </dialog>

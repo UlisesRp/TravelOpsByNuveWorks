@@ -1,9 +1,9 @@
 // Configuración de Supabase.
 // La demo funciona aunque Supabase esté desactivado.
 
-window.SUPABASE_ENABLED = false;
-window.SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
-window.SUPABASE_ANON_KEY = "TU-ANON-KEY";
+window.SUPABASE_ENABLED = true;
+window.SUPABASE_URL = "https://pjphghlclmkkqnenlfng.supabase.co";
+window.SUPABASE_ANON_KEY = "sb_publishable_1ara3I0-Izqt2pWTDQRZEg_Bi-ZbqRN";
 
 window.getSupabase = async function () {
   if (!window.SUPABASE_ENABLED) return null;
