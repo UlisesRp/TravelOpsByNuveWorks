@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <title>Travel Ops by Nuve Works</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <section class="login-shell" id="loginView">
+      <div class="login-card">
+        <div class="brand-lockup">
+          <div class="brand-mark">TO</div>
+          <div>
+            <strong>Travel Ops</strong>
+            <span>by Nuve Works</span>
+          </div>
+        </div>
+
+        <div class="login-copy">
+          <span class="eyebrow">ACCESO INTERNO</span>
+          <h1>Todo el viaje, en un solo lugar.</h1>
+          <p>Salidas, pasajeros, rooming, pagos, facturación y CRM personal.</p>
+        </div>
+
+        <form id="loginForm" class="form-stack">
+          <label>
+            <span>Correo</span>
+            <input id="loginEmail" type="email" autocomplete="email" placeholder="tu@correo.com" required />
+          </label>
+          <label>
+            <span>Contraseña</span>
+            <div class="password-wrap">
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••" required />
+              <button type="button" class="icon-btn" id="togglePassword" aria-label="Mostrar contraseña">◉</button>
+            </div>
+          </label>
+          <button class="primary-btn" type="submit">Entrar</button>
+          <p class="form-note" id="loginMessage">Configura Supabase para activar el acceso real. Mientras tanto puedes usar modo demo.</p>
+          <button class="ghost-btn" type="button" id="demoAccess">Entrar en modo demo</button>
+        </form>
+      </div>
+    </section>
+
+    <div class="shell hidden" id="mainView">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-mark small">TO</div>
+          <div>
+            <strong>Travel Ops</strong>
+            <span>by Nuve Works</span>
+          </div>
+        </div>
+
+        <nav class="nav-list" id="mainNav">
+          <button class="nav-item active" data-view="dashboard">⌂ <span>Inicio</span></button>
+          <button class="nav-item" data-view="calendar">▦ <span>Calendario</span></button>
+          <button class="nav-item" data-view="departures">✈ <span>Salidas</span></button>
+          <button class="nav-item" data-view="crm">◎ <span>Mi CRM</span></button>
+          <button class="nav-item" data-view="passengers">♙ <span>Pasajeros</span></button>
+          <button class="nav-item" data-view="payments">$ <span>Pagos</span></button>
+          <button class="nav-item" data-view="billing">▤ <span>Facturación</span></button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="user-pill">
+            <div class="avatar" id="userAvatar">U</div>
+            <div>
+              <strong id="userName">Usuario</strong>
+              <span>Acceso total</span>
+            </div>
+          </div>
+          <button class="ghost-btn slim" id="logoutBtn" type="button">Cerrar sesión</button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <span class="eyebrow" id="pageEyebrow">OPERACIÓN GENERAL</span>
+            <h2 id="pageTitle">Inicio</h2>
+          </div>
+          <div class="topbar-actions">
+            <select id="brandFilter" aria-label="Filtrar por marca">
+              <option value="all">Pink + Velora</option>
+              <option value="pink">Pink Sky Travel</option>
+              <option value="velora">Velora Travel</option>
+            </select>
+            <button class="primary-btn compact" id="newDepartureBtn" type="button">+ Nueva salida</button>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboardView">
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span>Próximas salidas</span>
+              <strong id="statDepartures">0</strong>
+              <small>Programadas</small>
+            </article>
+            <article class="stat-card">
+              <span>Pasajeros</span>
+              <strong id="statPax">0</strong>
+              <small>En próximas salidas</small>
+            </article>
+            <article class="stat-card warning">
+              <span>Cobranza pendiente</span>
+              <strong id="statPending">$0</strong>
+              <small>Saldo por cobrar</small>
+            </article>
+            <article class="stat-card">
+              <span>Facturas pendientes</span>
+              <strong id="statBilling">0</strong>
+              <small>Reservas por facturar</small>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">PRÓXIMAMENTE</span>
+                  <h3>Salidas</h3>
+                </div>
+                <button class="text-btn" data-jump="calendar" type="button">Ver calendario →</button>
+              </div>
+              <div class="departure-list" id="upcomingDepartures"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="eyebrow">MI CRM</span>
+                  <h3>Seguimientos de hoy</h3>
+                </div>
+                <button class="text-btn" data-jump="crm" type="button">Abrir CRM →</button>
+              </div>
+              <div class="task-list" id="todayFollowups"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="calendarView">
+          <div class="calendar-toolbar">
+            <div>
+              <button class="icon-btn square" id="prevMonth" type="button">←</button>
+              <button class="ghost-btn compact" id="todayBtn" type="button">Hoy</button>
+              <button class="icon-btn square" id="nextMonth" type="button">→</button>
+            </div>
+            <h3 id="calendarMonth">Mes</h3>
+            <div class="legend">
+              <span><i class="dot pink"></i>Pink</span>
+              <span><i class="dot velora"></i>Velora</span>
+            </div>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+
+        <section class="view" id="departuresView">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">OPERACIÓN</span>
+              <h3>Salidas registradas</h3>
+            </div>
+            <input class="search-input" id="departureSearch" placeholder="Buscar destino..." />
+          </div>
+          <div class="cards-grid" id="departureCards"></div>
+        </section>
+
+        <section class="view" id="crmView">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">PRIVADO POR USUARIO</span>
+              <h3>Mi CRM</h3>
+            </div>
+            <button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button>
+          </div>
+          <div class="pipeline" id="crmPipeline"></div>
+        </section>
+
+        <section class="view" id="passengersView">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">BASE OPERATIVA</span>
+              <h3>Pasajeros</h3>
+            </div>
+            <input class="search-input" id="passengerSearch" placeholder="Buscar pasajero..." />
+          </div>
+          <div class="panel table-panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre completo</th>
+                    <th>Nacimiento</th>
+                    <th>Edad</th>
+                    <th>Salida</th>
+                    <th>Agencia / cliente</th>
+                    <th>Marca</th>
+                  </tr>
+                </thead>
+                <tbody id="passengerTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="paymentsView">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">COBRANZA</span>
+              <h3>Pagos y saldos</h3>
+            </div>
+          </div>
+          <div class="panel table-panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Salida</th>
+                    <th>Agencia / cliente</th>
+                    <th>Total</th>
+                    <th>Pagado</th>
+                    <th>Saldo</th>
+                    <th>Estatus</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentsTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="billingView">
+          <div class="section-head">
+            <div>
+              <span class="eyebrow">FACTURACIÓN</span>
+              <h3>Estatus de facturas</h3>
+            </div>
+          </div>
+          <div class="panel table-panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Salida</th>
+                    <th>Agencia / cliente</th>
+                    <th>Marca</th>
+                    <th>Estatus</th>
+                    <th>Notas</th>
+                  </tr>
+                </thead>
+                <tbody id="billingTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="departureModal" class="modal">
+      <form method="dialog" id="departureForm">
+        <div class="modal-head">
+          <div>
+            <span class="eyebrow">NUEVA SALIDA</span>
+            <h3>Agregar salida</h3>
+          </div>
+          <button class="icon-btn square" value="cancel" type="button" data-close="departureModal">×</button>
+        </div>
+        <div class="form-grid">
+          <label><span>Marca</span>
+            <select id="departureBrand" required>
+              <option value="pink">Pink Sky Travel</option>
+              <option value="velora">Velora Travel</option>
+            </select>
+          </label>
+          <label><span>Destino</span><input id="departureDestination" required placeholder="Ej. Bacalar" /></label>
+          <label><span>Fecha de inicio</span><input id="departureStart" type="date" required /></label>
+          <label><span>Fecha final</span><input id="departureEnd" type="date" required /></label>
+          <label><span>Capacidad</span><input id="departureCapacity" type="number" min="1" value="20" required /></label>
+          <label class="full"><span>Notas</span><textarea id="departureNotes" rows="3" placeholder="Hotel, proveedor, observaciones..."></textarea></label>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" type="button" data-close="departureModal">Cancelar</button>
+          <button class="primary-btn" type="submit">Guardar salida</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="leadModal" class="modal">
+      <form method="dialog" id="leadForm">
+        <div class="modal-head">
+          <div>
+            <span class="eyebrow">MI CRM</span>
+            <h3>Nuevo prospecto</h3>
+          </div>
+          <button class="icon-btn square" value="cancel" type="button" data-close="leadModal">×</button>
+        </div>
+        <div class="form-grid">
+          <label><span>Nombre / agencia</span><input id="leadName" required /></label>
+          <label><span>WhatsApp</span><input id="leadPhone" /></label>
+          <label><span>Marca</span>
+            <select id="leadBrand">
+              <option value="pink">Pink Sky Travel</option>
+              <option value="velora">Velora Travel</option>
+            </select>
+          </label>
+          <label><span>Interés</span><input id="leadInterest" placeholder="Bacalar, Cancún..." /></label>
+          <label><span>Próximo seguimiento</span><input id="leadFollowup" type="date" /></label>
+          <label><span>Estatus</span>
+            <select id="leadStatus">
+              <option value="nuevo">Nuevo</option>
+              <option value="contactado">Contactado</option>
+              <option value="cotizando">Cotizando</option>
+              <option value="seguimiento">Seguimiento</option>
+              <option value="ganado">Ganado</option>
+              <option value="perdido">Perdido</option>
+            </select>
+          </label>
+          <label class="full"><span>Notas</span><textarea id="leadNotes" rows="3"></textarea></label>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost-btn" type="button" data-close="leadModal">Cancelar</button>
+          <button class="primary-btn" type="submit">Guardar prospecto</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="departureDetailModal" class="modal wide">
+      <div class="detail-shell">
+        <div class="modal-head">
+          <div>
+            <span class="eyebrow" id="detailBrand">SALIDA</span>
+            <h3 id="detailTitle">Destino</h3>
+            <p id="detailMeta" class="muted"></p>
+          </div>
+          <button class="icon-btn square" type="button" data-close="departureDetailModal">×</button>
+        </div>
+
+        <div class="detail-tabs" id="detailTabs">
+          <button class="active" data-detail-tab="summary" type="button">Resumen</button>
+          <button data-detail-tab="bookings" type="button">Agencias / clientes</button>
+          <button data-detail-tab="pax" type="button">Pasajeros</button>
+          <button data-detail-tab="rooming" type="button">Rooming</button>
+          <button data-detail-tab="payments" type="button">Pagos</button>
+          <button data-detail-tab="billing" type="button">Facturación</button>
+        </div>
+
+        <div class="detail-content" id="detailContent"></div>
+      </div>
+    </dialog>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
