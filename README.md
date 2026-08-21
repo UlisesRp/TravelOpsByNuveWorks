@@ -4,15 +4,22 @@ Sistema web de gestión operativa para agencias de viajes, desarrollado por **Nu
 
 Esta instalación está preparada para operar **Pink Sky Travel** y **Velora Travel** desde una misma plataforma.
 
+## Cambios de esta versión
+- Logo principal de **Travel Ops by Nuve Works** agregado en login y sidebar.
+- Logo de **Pink Sky Travel** agregado en sus lugares visuales.
+- Logo de **Velora Travel** agregado en sus lugares visuales.
+- Las salidas nuevas ahora **quedan guardadas** en la demo mediante `localStorage`.
+- El **CRM ahora es global para todos** los usuarios.
+- En Supabase, el CRM también quedó con acceso global para usuarios autenticados.
+
 ## Incluye
 - Login preparado para Supabase Auth.
 - 3 usuarios o más con acceso total a la operación.
-- CRM privado por usuario mediante RLS.
+- CRM global para todo el equipo.
 - Dashboard general.
 - Calendario mensual de salidas.
 - Alta y consulta de salidas.
 - Filtro Pink Sky Travel / Velora Travel / ambas.
-- Agencias y clientes por salida.
 - Pasajeros con nombre completo + fecha de nacimiento.
 - Base para lista completa de pasajeros por agencia o salida.
 - Base para Rooming List.
@@ -35,21 +42,9 @@ La demo funciona desde `file://`, sin servidor y sin Supabase.
    `window.SUPABASE_ENABLED = false`
    por:
    `window.SUPABASE_ENABLED = true`
-7. Sirve el proyecto desde localhost o GitHub Pages.
 
-## Arquitectura de acceso
-- Los 3 usuarios tienen acceso total a calendario, salidas, pasajeros, pagos, facturación y rooming.
-- El CRM es privado para cada usuario mediante `owner_id = auth.uid()`.
-
-## Siguiente etapa
-Completar los CRUD reales para:
-- Agencias / clientes dentro de una salida.
-- Pasajeros.
-- Abonos.
-- Rooming List.
-- Lista de pasajeros para emisión de vuelos.
-- Exportación a Excel/PDF.
-- Historial de movimientos.
+## Nota
+En modo demo, las salidas y prospectos se guardan en el navegador del equipo que estés usando.
 
 ---
 **Travel Ops by Nuve Works**

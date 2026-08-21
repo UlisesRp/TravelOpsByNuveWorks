@@ -14,18 +14,14 @@
   <div id="app">
     <section class="login-shell" id="loginView">
       <div class="login-card">
-        <div class="brand-lockup">
-          <div class="brand-mark">TO</div>
-          <div>
-            <strong>Travel Ops</strong>
-            <span>by Nuve Works</span>
-          </div>
+        <div class="brand-lockup brand-lockup-logo">
+          <img class="travel-ops-main-logo" src="assets/travel-ops-logo.png" alt="Travel Ops by Nuve Works" />
         </div>
 
         <div class="login-copy">
           <span class="eyebrow">ACCESO INTERNO</span>
           <h1>Todo el viaje, en un solo lugar.</h1>
-          <p>Salidas, pasajeros, rooming, pagos, facturación y CRM personal.</p>
+          <p>Salidas, pasajeros, rooming, pagos, facturación y CRM global para todo el equipo.</p>
         </div>
 
         <form id="loginForm" class="form-stack">
@@ -49,25 +45,25 @@
 
     <div class="shell hidden" id="mainView">
       <aside class="sidebar">
-        <div class="sidebar-brand">
-          <div class="brand-mark small">TO</div>
-          <div>
-            <strong>Travel Ops</strong>
-            <span>by Nuve Works</span>
-          </div>
+        <div class="sidebar-brand sidebar-brand-logo">
+          <img class="travel-ops-sidebar-logo" src="assets/travel-ops-logo.png" alt="Travel Ops by Nuve Works" />
         </div>
 
         <nav class="nav-list" id="mainNav">
           <button class="nav-item active" data-view="dashboard">⌂ <span>Inicio</span></button>
           <button class="nav-item" data-view="calendar">▦ <span>Calendario</span></button>
           <button class="nav-item" data-view="departures">✈ <span>Salidas</span></button>
-          <button class="nav-item" data-view="crm">◎ <span>Mi CRM</span></button>
+          <button class="nav-item" data-view="crm">◎ <span>CRM Global</span></button>
           <button class="nav-item" data-view="passengers">♙ <span>Pasajeros</span></button>
           <button class="nav-item" data-view="payments">$ <span>Pagos</span></button>
           <button class="nav-item" data-view="billing">▤ <span>Facturación</span></button>
         </nav>
 
         <div class="sidebar-footer">
+          <div class="team-brands">
+            <div class="team-brand"><img src="assets/pink-logo.png" alt="Pink Sky Travel" /><span>Pink</span></div>
+            <div class="team-brand"><img src="assets/velora-logo.png" alt="Velora Travel" /><span>Velora</span></div>
+          </div>
           <div class="user-pill">
             <div class="avatar" id="userAvatar">U</div>
             <div>
@@ -134,8 +130,8 @@
             <section class="panel">
               <div class="panel-head">
                 <div>
-                  <span class="eyebrow">MI CRM</span>
-                  <h3>Seguimientos de hoy</h3>
+                  <span class="eyebrow">CRM GLOBAL</span>
+                  <h3>Seguimientos</h3>
                 </div>
                 <button class="text-btn" data-jump="crm" type="button">Abrir CRM →</button>
               </div>
@@ -153,8 +149,8 @@
             </div>
             <h3 id="calendarMonth">Mes</h3>
             <div class="legend">
-              <span><i class="dot pink"></i>Pink</span>
-              <span><i class="dot velora"></i>Velora</span>
+              <span><img src="assets/pink-logo.png" alt="Pink" />Pink</span>
+              <span><img src="assets/velora-logo.png" alt="Velora" />Velora</span>
             </div>
           </div>
           <div class="calendar-grid" id="calendarGrid"></div>
@@ -174,8 +170,8 @@
         <section class="view" id="crmView">
           <div class="section-head">
             <div>
-              <span class="eyebrow">PRIVADO POR USUARIO</span>
-              <h3>Mi CRM</h3>
+              <span class="eyebrow">VISIBLE PARA TODO EL EQUIPO</span>
+              <h3>CRM Global</h3>
             </div>
             <button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button>
           </div>
@@ -295,7 +291,7 @@
       <form method="dialog" id="leadForm">
         <div class="modal-head">
           <div>
-            <span class="eyebrow">MI CRM</span>
+            <span class="eyebrow">CRM GLOBAL</span>
             <h3>Nuevo prospecto</h3>
           </div>
           <button class="icon-btn square" value="cancel" type="button" data-close="leadModal">×</button>
