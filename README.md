@@ -1,50 +1,51 @@
 # Travel Ops by Nuve Works
 
-Sistema web de gestión operativa para agencias de viajes, desarrollado por **Nuve Works**.
+Sistema web de operación para **Pink Sky Travel** y **Velora Travel**.
 
-Esta instalación está preparada para operar **Pink Sky Travel** y **Velora Travel** desde una misma plataforma.
+## V1.7 — Agencias Pink
+Se agregó un módulo exclusivo para **Pink Sky Travel** enfocado en medir producción y ventas por agencia.
 
-## Cambios de esta versión
-- Logo principal de **Travel Ops by Nuve Works** agregado en login y sidebar.
-- Logo de **Pink Sky Travel** agregado en sus lugares visuales.
-- Logo de **Velora Travel** agregado en sus lugares visuales.
-- Las salidas nuevas ahora **quedan guardadas** en la demo mediante `localStorage`.
-- El **CRM ahora es global para todos** los usuarios.
-- En Supabase, el CRM también quedó con acceso global para usuarios autenticados.
+### Nuevo módulo Agencias Pink
+- Acceso desde el menú lateral con el logo de Pink.
+- Fuerza automáticamente el filtro a **Pink Sky Travel**.
+- Medición por:
+  - todo el historial,
+  - mes,
+  - año,
+  - rango de fechas personalizado.
+- Buscador por agencia.
+- Indicadores:
+  - agencias activas,
+  - ventas totales,
+  - cobrado,
+  - saldo pendiente,
+  - pasajeros,
+  - reservas.
+- Ranking de agencias con:
+  - ventas,
+  - pax,
+  - reservas,
+  - cobrado,
+  - saldo,
+  - porcentaje cobrado,
+  - ticket promedio,
+  - cantidad de destinos.
+- Resumen de ventas por destino.
+- Detalle individual de cada agencia y las salidas que compró.
+- Descarga del reporte en CSV.
+- El reporte registra quién lo exportó mediante el sistema de usuarios existente.
 
-## Incluye
-- Login preparado para Supabase Auth.
-- 3 usuarios o más con acceso total a la operación.
-- CRM global para todo el equipo.
-- Dashboard general.
-- Calendario mensual de salidas.
-- Alta y consulta de salidas.
-- Filtro Pink Sky Travel / Velora Travel / ambas.
-- Pasajeros con nombre completo + fecha de nacimiento.
-- Base para lista completa de pasajeros por agencia o salida.
-- Base para Rooming List.
-- Pagos y saldos.
-- Facturación.
-- Base de datos SQL preparada para Supabase.
+> En esta versión, el periodo de estadísticas se calcula con la **fecha de inicio de la salida**.
 
-## Abrir la demo
-Abre `index.html` directamente con doble clic y pulsa **Entrar en modo demo**.
-
-La demo funciona desde `file://`, sin servidor y sin Supabase.
-
-## Conectar Supabase
-1. Crea un proyecto en Supabase.
-2. Abre `supabase/schema.sql` y ejecuta todo en **SQL Editor**.
-3. En Supabase entra a **Authentication > Users** y crea los 3 usuarios.
-4. Abre `js/supabase.js`.
-5. Pega `window.SUPABASE_URL` y `window.SUPABASE_ANON_KEY`.
-6. Cambia:
-   `window.SUPABASE_ENABLED = false`
-   por:
-   `window.SUPABASE_ENABLED = true`
-
-## Nota
-En modo demo, las salidas y prospectos se guardan en el navegador del equipo que estés usando.
-
----
-**Travel Ops by Nuve Works**
+## Funciones ya incluidas
+- Calendario de salidas.
+- Operación Pink / Velora.
+- CRM global.
+- Agencias / clientes por salida.
+- Pasajeros editables por salida.
+- Rooming editable y descargable / imprimible.
+- Pagos y abonos editables.
+- Facturación completa.
+- Perfil con foto.
+- Trazabilidad de usuario en movimientos e impresiones.
+- Supabase preparado para trabajo multiusuario.

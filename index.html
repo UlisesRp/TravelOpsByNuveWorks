@@ -17,20 +17,14 @@
         <div class="brand-lockup brand-lockup-logo">
           <img class="travel-ops-main-logo" src="assets/travel-ops-logo.png" alt="Travel Ops by Nuve Works" />
         </div>
-
         <div class="login-copy">
           <span class="eyebrow">ACCESO INTERNO</span>
           <h1>Todo el viaje, en un solo lugar.</h1>
-          <p>Salidas, pasajeros, rooming, pagos, facturación y CRM global para todo el equipo.</p>
+          <p>Salidas, rooming, pagos, facturación y CRM global para todo el equipo.</p>
         </div>
-
         <form id="loginForm" class="form-stack">
-          <label>
-            <span>Correo</span>
-            <input id="loginEmail" type="email" autocomplete="email" placeholder="tu@correo.com" required />
-          </label>
-          <label>
-            <span>Contraseña</span>
+          <label><span>Correo</span><input id="loginEmail" type="email" autocomplete="email" placeholder="tu@correo.com" required /></label>
+          <label><span>Contraseña</span>
             <div class="password-wrap">
               <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••••" required />
               <button type="button" class="icon-btn" id="togglePassword" aria-label="Mostrar contraseña">◉</button>
@@ -48,44 +42,35 @@
         <div class="sidebar-brand sidebar-brand-logo">
           <img class="travel-ops-sidebar-logo" src="assets/travel-ops-logo.png" alt="Travel Ops by Nuve Works" />
         </div>
-
         <nav class="nav-list" id="mainNav">
           <button class="nav-item active" data-view="dashboard">⌂ <span>Inicio</span></button>
           <button class="nav-item" data-view="calendar">▦ <span>Calendario</span></button>
           <button class="nav-item" data-view="departures">✈ <span>Salidas</span></button>
           <button class="nav-item" data-view="crm">◎ <span>CRM Global</span></button>
-          <button class="nav-item" data-view="passengers">♙ <span>Pasajeros</span></button>
+          <button class="nav-item pink-only-nav" data-view="agencies"><img class="nav-mini-logo" src="assets/pink-logo.png" alt="" /><span>Agencias Pink</span></button>
           <button class="nav-item" data-view="payments">$ <span>Pagos</span></button>
           <button class="nav-item" data-view="billing">▤ <span>Facturación</span></button>
         </nav>
-
         <div class="sidebar-footer">
+          <div class="team-brands-title">Operación por marca</div>
           <div class="team-brands">
-            <div class="team-brand"><img src="assets/pink-logo.png" alt="Pink Sky Travel" /><span>Pink</span></div>
-            <div class="team-brand"><img src="assets/velora-logo.png" alt="Velora Travel" /><span>Velora</span></div>
+            <button class="team-brand brand-switch" type="button" data-brand-target="pink"><img src="assets/pink-logo.png" alt="Pink Sky Travel" /><span>Pink</span></button>
+            <button class="team-brand brand-switch" type="button" data-brand-target="velora"><img src="assets/velora-logo.png" alt="Velora Travel" /><span>Velora</span></button>
           </div>
-          <div class="user-pill">
+          <button class="user-pill user-pill-button" id="profileBtn" type="button" title="Editar perfil">
             <div class="avatar" id="userAvatar">U</div>
-            <div>
-              <strong id="userName">Usuario</strong>
-              <span>Acceso total</span>
-            </div>
-          </div>
+            <div><strong id="userName">Usuario</strong><span>Acceso total · Editar perfil</span></div>
+          </button>
           <button class="ghost-btn slim" id="logoutBtn" type="button">Cerrar sesión</button>
         </div>
       </aside>
 
       <main class="content">
         <header class="topbar">
-          <div>
-            <span class="eyebrow" id="pageEyebrow">OPERACIÓN GENERAL</span>
-            <h2 id="pageTitle">Inicio</h2>
-          </div>
+          <div><span class="eyebrow" id="pageEyebrow">OPERACIÓN GENERAL</span><h2 id="pageTitle">Inicio</h2></div>
           <div class="topbar-actions">
             <select id="brandFilter" aria-label="Filtrar por marca">
-              <option value="all">Pink + Velora</option>
-              <option value="pink">Pink Sky Travel</option>
-              <option value="velora">Velora Travel</option>
+              <option value="all">Pink + Velora</option><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option>
             </select>
             <button class="primary-btn compact" id="newDepartureBtn" type="button">+ Nueva salida</button>
           </div>
@@ -93,261 +78,218 @@
 
         <section class="view active" id="dashboardView">
           <div class="stats-grid">
-            <article class="stat-card">
-              <span>Próximas salidas</span>
-              <strong id="statDepartures">0</strong>
-              <small>Programadas</small>
-            </article>
-            <article class="stat-card">
-              <span>Pasajeros</span>
-              <strong id="statPax">0</strong>
-              <small>En próximas salidas</small>
-            </article>
-            <article class="stat-card warning">
-              <span>Cobranza pendiente</span>
-              <strong id="statPending">$0</strong>
-              <small>Saldo por cobrar</small>
-            </article>
-            <article class="stat-card">
-              <span>Facturas pendientes</span>
-              <strong id="statBilling">0</strong>
-              <small>Reservas por facturar</small>
-            </article>
+            <article class="stat-card"><span>Próximas salidas</span><strong id="statDepartures">0</strong><small>Programadas</small></article>
+            <article class="stat-card"><span>Pasajeros</span><strong id="statPax">0</strong><small>En próximas salidas</small></article>
+            <article class="stat-card warning"><span>Cobranza pendiente</span><strong id="statPending">$0</strong><small>Saldo por cobrar</small></article>
+            <article class="stat-card"><span>Facturas pendientes</span><strong id="statBilling">0</strong><small>Reservas por atender</small></article>
           </div>
-
           <div class="dashboard-grid">
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <span class="eyebrow">PRÓXIMAMENTE</span>
-                  <h3>Salidas</h3>
-                </div>
-                <button class="text-btn" data-jump="calendar" type="button">Ver calendario →</button>
-              </div>
-              <div class="departure-list" id="upcomingDepartures"></div>
-            </section>
-
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <span class="eyebrow">CRM GLOBAL</span>
-                  <h3>Seguimientos</h3>
-                </div>
-                <button class="text-btn" data-jump="crm" type="button">Abrir CRM →</button>
-              </div>
-              <div class="task-list" id="todayFollowups"></div>
-            </section>
+            <section class="panel"><div class="panel-head"><div><span class="eyebrow">PRÓXIMAMENTE</span><h3>Salidas</h3></div><button class="text-btn" data-jump="calendar" type="button">Ver calendario →</button></div><div class="departure-list" id="upcomingDepartures"></div></section>
+            <section class="panel"><div class="panel-head"><div><span class="eyebrow">CRM GLOBAL</span><h3>Seguimientos</h3></div><button class="text-btn" data-jump="crm" type="button">Abrir CRM →</button></div><div class="task-list" id="todayFollowups"></div></section>
           </div>
         </section>
 
         <section class="view" id="calendarView">
           <div class="calendar-toolbar">
-            <div>
-              <button class="icon-btn square" id="prevMonth" type="button">←</button>
-              <button class="ghost-btn compact" id="todayBtn" type="button">Hoy</button>
-              <button class="icon-btn square" id="nextMonth" type="button">→</button>
-            </div>
+            <div><button class="icon-btn square" id="prevMonth" type="button">←</button><button class="ghost-btn compact" id="todayBtn" type="button">Hoy</button><button class="icon-btn square" id="nextMonth" type="button">→</button></div>
             <h3 id="calendarMonth">Mes</h3>
-            <div class="legend">
-              <span><img src="assets/pink-logo.png" alt="Pink" />Pink</span>
-              <span><img src="assets/velora-logo.png" alt="Velora" />Velora</span>
-            </div>
+            <div class="legend"><span><img src="assets/pink-logo.png" alt="Pink" />Pink</span><span><img src="assets/velora-logo.png" alt="Velora" />Velora</span></div>
           </div>
           <div class="calendar-grid" id="calendarGrid"></div>
         </section>
 
         <section class="view" id="departuresView">
-          <div class="section-head">
-            <div>
-              <span class="eyebrow">OPERACIÓN</span>
-              <h3>Salidas registradas</h3>
-            </div>
-            <input class="search-input" id="departureSearch" placeholder="Buscar destino..." />
-          </div>
+          <div class="section-head"><div><span class="eyebrow">OPERACIÓN</span><h3>Salidas registradas</h3></div><input class="search-input" id="departureSearch" placeholder="Buscar destino..." /></div>
           <div class="cards-grid" id="departureCards"></div>
         </section>
 
         <section class="view" id="crmView">
-          <div class="section-head">
-            <div>
-              <span class="eyebrow">VISIBLE PARA TODO EL EQUIPO</span>
-              <h3>CRM Global</h3>
-            </div>
-            <button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button>
-          </div>
+          <div class="section-head"><div><span class="eyebrow">VISIBLE PARA TODO EL EQUIPO</span><h3>CRM Global</h3></div><button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button></div>
           <div class="pipeline" id="crmPipeline"></div>
         </section>
 
-        <section class="view" id="passengersView">
-          <div class="section-head">
-            <div>
-              <span class="eyebrow">BASE OPERATIVA</span>
-              <h3>Pasajeros</h3>
-            </div>
-            <input class="search-input" id="passengerSearch" placeholder="Buscar pasajero..." />
+        <section class="view" id="agenciesView">
+          <div class="agency-title-row">
+            <div class="agency-title-brand"><img src="assets/pink-logo.png" alt="Pink Sky Travel" /><div><span class="eyebrow">PINK SKY TRAVEL</span><h3>Agencias</h3><p>Ventas, pax, cobranza y desempeño por agencia.</p></div></div>
+            <button class="ghost-btn compact" id="downloadAgencyReportBtn" type="button">Descargar reporte</button>
           </div>
-          <div class="panel table-panel">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Nombre completo</th>
-                    <th>Nacimiento</th>
-                    <th>Edad</th>
-                    <th>Salida</th>
-                    <th>Agencia / cliente</th>
-                    <th>Marca</th>
-                  </tr>
-                </thead>
-                <tbody id="passengerTable"></tbody>
-              </table>
+
+          <section class="panel agency-filter-panel">
+            <div class="agency-filter-grid">
+              <label><span>Medir por</span><select id="agencyPeriodMode"><option value="all">Todo el historial</option><option value="month">Mes</option><option value="year">Año</option><option value="custom">Rango personalizado</option></select></label>
+              <label id="agencyMonthWrap" class="hidden"><span>Mes</span><input id="agencyMonth" type="month" value="2026-08" /></label>
+              <label id="agencyYearWrap" class="hidden"><span>Año</span><input id="agencyYear" type="number" min="2020" max="2100" value="2026" /></label>
+              <label id="agencyStartWrap" class="hidden"><span>Desde</span><input id="agencyStart" type="date" /></label>
+              <label id="agencyEndWrap" class="hidden"><span>Hasta</span><input id="agencyEnd" type="date" /></label>
+              <label class="agency-search-field"><span>Buscar agencia</span><input id="agencySearch" placeholder="Ej. Turismo Rosario" /></label>
             </div>
+            <p class="agency-period-note" id="agencyPeriodNote">Las métricas se calculan por la fecha de inicio de cada salida.</p>
+          </section>
+
+          <div class="agency-stats-grid">
+            <article class="stat-card"><span>Agencias activas</span><strong id="agencyStatCount">0</strong><small>Con ventas en el periodo</small></article>
+            <article class="stat-card"><span>Ventas</span><strong id="agencyStatSales">$0</strong><small>Total reservado</small></article>
+            <article class="stat-card"><span>Cobrado</span><strong id="agencyStatPaid">$0</strong><small>Pagos registrados</small></article>
+            <article class="stat-card warning"><span>Por cobrar</span><strong id="agencyStatPending">$0</strong><small>Saldo pendiente</small></article>
+            <article class="stat-card"><span>Pasajeros</span><strong id="agencyStatPax">0</strong><small>Pax vendidos</small></article>
+            <article class="stat-card"><span>Reservas</span><strong id="agencyStatBookings">0</strong><small>Operaciones</small></article>
+          </div>
+
+          <div class="agency-analytics-grid">
+            <section class="panel table-panel agency-ranking-panel">
+              <div class="panel-head agency-panel-head"><div><span class="eyebrow">DESEMPEÑO</span><h3>Ranking de agencias</h3></div><span class="agency-period-badge" id="agencyPeriodBadge">Todo el historial</span></div>
+              <div class="table-wrap"><table class="agency-table"><thead><tr><th>Agencia</th><th>Reservas</th><th>Pax</th><th>Ventas</th><th>Cobrado</th><th>Saldo</th><th>% cobrado</th><th>Ticket prom.</th><th></th></tr></thead><tbody id="agencyRankingTable"></tbody></table></div>
+            </section>
+
+            <section class="panel agency-destination-panel">
+              <div class="panel-head"><div><span class="eyebrow">DESTINOS</span><h3>Ventas por destino</h3></div></div>
+              <div id="agencyDestinationStats" class="agency-destination-list"></div>
+            </section>
           </div>
         </section>
 
         <section class="view" id="paymentsView">
-          <div class="section-head">
-            <div>
-              <span class="eyebrow">COBRANZA</span>
-              <h3>Pagos y saldos</h3>
-            </div>
-          </div>
-          <div class="panel table-panel">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Salida</th>
-                    <th>Agencia / cliente</th>
-                    <th>Total</th>
-                    <th>Pagado</th>
-                    <th>Saldo</th>
-                    <th>Estatus</th>
-                  </tr>
-                </thead>
-                <tbody id="paymentsTable"></tbody>
-              </table>
-            </div>
-          </div>
+          <div class="section-head"><div><span class="eyebrow">COBRANZA</span><h3>Pagos y saldos</h3></div></div>
+          <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Salida</th><th>Agencia / cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Último movimiento</th><th>Acciones</th></tr></thead><tbody id="paymentsTable"></tbody></table></div></div>
         </section>
 
         <section class="view" id="billingView">
-          <div class="section-head">
-            <div>
-              <span class="eyebrow">FACTURACIÓN</span>
-              <h3>Estatus de facturas</h3>
-            </div>
-          </div>
-          <div class="panel table-panel">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Salida</th>
-                    <th>Agencia / cliente</th>
-                    <th>Marca</th>
-                    <th>Estatus</th>
-                    <th>Notas</th>
-                  </tr>
-                </thead>
-                <tbody id="billingTable"></tbody>
-              </table>
-            </div>
-          </div>
+          <div class="section-head"><div><span class="eyebrow">FACTURACIÓN</span><h3>Estado de facturas</h3></div></div>
+          <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Salida</th><th>Agencia / cliente</th><th>Marca</th><th>¿Factura?</th><th>Estatus</th><th>Último movimiento</th><th>Acciones</th></tr></thead><tbody id="billingTable"></tbody></table></div></div>
         </section>
       </main>
     </div>
 
     <dialog id="departureModal" class="modal">
       <form method="dialog" id="departureForm">
-        <div class="modal-head">
-          <div>
-            <span class="eyebrow">NUEVA SALIDA</span>
-            <h3>Agregar salida</h3>
-          </div>
-          <button class="icon-btn square" value="cancel" type="button" data-close="departureModal">×</button>
-        </div>
+        <div class="modal-head"><div><span class="eyebrow">NUEVA SALIDA</span><h3>Agregar salida</h3></div><button class="icon-btn square" type="button" data-close="departureModal">×</button></div>
         <div class="form-grid">
-          <label><span>Marca</span>
-            <select id="departureBrand" required>
-              <option value="pink">Pink Sky Travel</option>
-              <option value="velora">Velora Travel</option>
-            </select>
-          </label>
+          <label><span>Marca</span><select id="departureBrand" required><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label>
           <label><span>Destino</span><input id="departureDestination" required placeholder="Ej. Bacalar" /></label>
           <label><span>Fecha de inicio</span><input id="departureStart" type="date" required /></label>
           <label><span>Fecha final</span><input id="departureEnd" type="date" required /></label>
           <label><span>Capacidad</span><input id="departureCapacity" type="number" min="1" value="20" required /></label>
           <label class="full"><span>Notas</span><textarea id="departureNotes" rows="3" placeholder="Hotel, proveedor, observaciones..."></textarea></label>
         </div>
-        <div class="modal-actions">
-          <button class="ghost-btn" type="button" data-close="departureModal">Cancelar</button>
-          <button class="primary-btn" type="submit">Guardar salida</button>
-        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="departureModal">Cancelar</button><button class="primary-btn" type="submit">Guardar salida</button></div>
       </form>
     </dialog>
 
     <dialog id="leadModal" class="modal">
       <form method="dialog" id="leadForm">
-        <div class="modal-head">
-          <div>
-            <span class="eyebrow">CRM GLOBAL</span>
-            <h3>Nuevo prospecto</h3>
-          </div>
-          <button class="icon-btn square" value="cancel" type="button" data-close="leadModal">×</button>
-        </div>
+        <div class="modal-head"><div><span class="eyebrow">CRM GLOBAL</span><h3>Nuevo prospecto</h3></div><button class="icon-btn square" type="button" data-close="leadModal">×</button></div>
         <div class="form-grid">
-          <label><span>Nombre / agencia</span><input id="leadName" required /></label>
-          <label><span>WhatsApp</span><input id="leadPhone" /></label>
-          <label><span>Marca</span>
-            <select id="leadBrand">
-              <option value="pink">Pink Sky Travel</option>
-              <option value="velora">Velora Travel</option>
-            </select>
-          </label>
+          <label><span>Nombre / agencia</span><input id="leadName" required /></label><label><span>WhatsApp</span><input id="leadPhone" /></label>
+          <label><span>Marca</span><select id="leadBrand"><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label>
           <label><span>Interés</span><input id="leadInterest" placeholder="Bacalar, Cancún..." /></label>
           <label><span>Próximo seguimiento</span><input id="leadFollowup" type="date" /></label>
-          <label><span>Estatus</span>
-            <select id="leadStatus">
-              <option value="nuevo">Nuevo</option>
-              <option value="contactado">Contactado</option>
-              <option value="cotizando">Cotizando</option>
-              <option value="seguimiento">Seguimiento</option>
-              <option value="ganado">Ganado</option>
-              <option value="perdido">Perdido</option>
-            </select>
-          </label>
+          <label><span>Estatus</span><select id="leadStatus"><option value="nuevo">Nuevo</option><option value="contactado">Contactado</option><option value="cotizando">Cotizando</option><option value="seguimiento">Seguimiento</option><option value="ganado">Ganado</option><option value="perdido">Perdido</option></select></label>
           <label class="full"><span>Notas</span><textarea id="leadNotes" rows="3"></textarea></label>
         </div>
-        <div class="modal-actions">
-          <button class="ghost-btn" type="button" data-close="leadModal">Cancelar</button>
-          <button class="primary-btn" type="submit">Guardar prospecto</button>
-        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="leadModal">Cancelar</button><button class="primary-btn" type="submit">Guardar prospecto</button></div>
       </form>
     </dialog>
 
     <dialog id="departureDetailModal" class="modal wide">
       <div class="detail-shell">
-        <div class="modal-head">
-          <div>
-            <span class="eyebrow" id="detailBrand">SALIDA</span>
-            <h3 id="detailTitle">Destino</h3>
-            <p id="detailMeta" class="muted"></p>
-          </div>
-          <button class="icon-btn square" type="button" data-close="departureDetailModal">×</button>
-        </div>
-
+        <div class="modal-head"><div><div id="detailBrand" class="detail-brand"></div><h3 id="detailTitle">Destino</h3><p id="detailMeta" class="muted"></p></div><button class="icon-btn square" type="button" data-close="departureDetailModal">×</button></div>
         <div class="detail-tabs" id="detailTabs">
-          <button class="active" data-detail-tab="summary" type="button">Resumen</button>
-          <button data-detail-tab="bookings" type="button">Agencias / clientes</button>
-          <button data-detail-tab="pax" type="button">Pasajeros</button>
-          <button data-detail-tab="rooming" type="button">Rooming</button>
-          <button data-detail-tab="payments" type="button">Pagos</button>
-          <button data-detail-tab="billing" type="button">Facturación</button>
+          <button class="active" data-detail-tab="summary" type="button">Resumen</button><button data-detail-tab="bookings" type="button">Agencias / clientes</button><button data-detail-tab="pax" type="button">Pasajeros</button><button data-detail-tab="rooming" type="button">Rooming</button><button data-detail-tab="payments" type="button">Pagos</button><button data-detail-tab="billing" type="button">Facturación</button>
         </div>
-
         <div class="detail-content" id="detailContent"></div>
       </div>
+    </dialog>
+
+    <dialog id="bookingModal" class="modal">
+      <form method="dialog" id="bookingForm">
+        <input type="hidden" id="bookingId" />
+        <div class="modal-head"><div><span class="eyebrow">AGENCIA / CLIENTE</span><h3 id="bookingModalTitle">Agregar agencia / cliente</h3></div><button class="icon-btn square" type="button" data-close="bookingModal">×</button></div>
+        <div class="form-grid"><label class="full"><span>Nombre</span><input id="bookingName" required placeholder="Ej. Turismo Rosario" /></label><label><span>Total de la reserva</span><input id="bookingTotal" type="number" min="0" step="0.01" /></label><label><span>Notas</span><input id="bookingNotes" /></label></div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="bookingModal">Cancelar</button><button class="primary-btn" type="submit">Guardar</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="passengerModal" class="modal">
+      <form method="dialog" id="passengerForm">
+        <input type="hidden" id="passengerId" />
+        <div class="modal-head"><div><span class="eyebrow">PASAJERO</span><h3 id="passengerModalTitle">Agregar pasajero</h3></div><button class="icon-btn square" type="button" data-close="passengerModal">×</button></div>
+        <div class="form-grid">
+          <label class="full"><span>Agencia / cliente</span><select id="passengerBooking" required></select></label>
+          <label><span>Nombre(s)</span><input id="passengerFirst" required /></label><label><span>Apellido paterno</span><input id="passengerLast1" required /></label>
+          <label><span>Apellido materno</span><input id="passengerLast2" /></label><label><span>Fecha de nacimiento</span><input id="passengerBirth" type="date" required /></label>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="passengerModal">Cancelar</button><button class="primary-btn" type="submit">Guardar pasajero</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="roomModal" class="modal">
+      <form method="dialog" id="roomForm">
+        <input type="hidden" id="roomId" />
+        <div class="modal-head"><div><span class="eyebrow">ROOMING</span><h3 id="roomModalTitle">Nueva habitación</h3></div><button class="icon-btn square" type="button" data-close="roomModal">×</button></div>
+        <div class="form-grid">
+          <label><span>Número / nombre</span><input id="roomNumber" placeholder="Ej. 101 / Hab. 1" /></label>
+          <label><span>Tipo</span><select id="roomType" required><option value="SGL">SGL</option><option value="DBL">DBL</option><option value="TPL">TPL</option><option value="CPL">CPL</option></select></label>
+          <label class="full"><span>Agencia / cliente</span><select id="roomBooking"></select></label>
+          <div class="full"><span class="field-label">Pasajeros</span><div class="check-grid" id="roomPassengerChecks"></div></div>
+          <label class="full"><span>Notas</span><textarea id="roomNotes" rows="3"></textarea></label>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="roomModal">Cancelar</button><button class="primary-btn" type="submit">Guardar habitación</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="paymentModal" class="modal">
+      <form method="dialog" id="paymentForm">
+        <input type="hidden" id="paymentId" />
+        <div class="modal-head"><div><span class="eyebrow">PAGO</span><h3 id="paymentModalTitle">Registrar pago</h3></div><button class="icon-btn square" type="button" data-close="paymentModal">×</button></div>
+        <div class="form-grid">
+          <label class="full"><span>Agencia / cliente</span><select id="paymentBooking" required></select></label>
+          <label><span>Monto</span><input id="paymentAmount" type="number" min="0.01" step="0.01" required /></label><label><span>Fecha</span><input id="paymentDate" type="date" required /></label>
+          <label><span>Método</span><select id="paymentMethod"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Depósito</option><option>Otro</option></select></label><label><span>Referencia</span><input id="paymentReference" /></label>
+          <label class="full"><span>Notas</span><textarea id="paymentNotes" rows="3"></textarea></label>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="paymentModal">Cancelar</button><button class="primary-btn" type="submit">Guardar pago</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="billingModal" class="modal wide-small">
+      <form method="dialog" id="billingForm">
+        <input type="hidden" id="billingBookingId" />
+        <div class="modal-head"><div><span class="eyebrow">FACTURACIÓN</span><h3>Editar facturación</h3></div><button class="icon-btn square" type="button" data-close="billingModal">×</button></div>
+        <div class="form-grid">
+          <label><span>Agencia / cliente</span><input id="billingBookingName" disabled /></label>
+          <label><span>¿Requiere factura?</span><select id="invoiceRequired"><option value="false">No</option><option value="true">Sí</option></select></label>
+          <label><span>Estatus</span><select id="invoiceStatus"><option value="no_solicitada">No solicitada</option><option value="solicitada">Solicitada</option><option value="datos_pendientes">Datos pendientes</option><option value="en_proceso">En proceso</option><option value="facturada">Facturada</option><option value="cancelada">Cancelada</option></select></label>
+          <label><span>RFC</span><input id="invoiceRFC" /></label>
+          <label class="full"><span>Razón social</span><input id="invoiceBusinessName" /></label>
+          <label><span>Régimen fiscal</span><input id="invoiceRegime" /></label><label><span>C.P. fiscal</span><input id="invoiceZip" /></label>
+          <label><span>Uso CFDI</span><input id="invoiceCFDI" /></label><label><span>Correo de factura</span><input id="invoiceEmail" type="email" /></label>
+          <label><span>Folio / UUID</span><input id="invoiceFolio" /></label><label><span>Fecha de factura</span><input id="invoiceDate" type="date" /></label>
+          <label class="full"><span>Notas</span><textarea id="invoiceNotes" rows="3"></textarea></label>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="billingModal">Cancelar</button><button class="primary-btn" type="submit">Guardar facturación</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="agencyDetailModal" class="modal wide">
+      <div class="detail-shell">
+        <div class="modal-head"><div class="agency-modal-brand"><img src="assets/pink-logo.png" alt="Pink Sky Travel" /><div><span class="eyebrow">AGENCIA PINK</span><h3 id="agencyDetailTitle">Agencia</h3><p id="agencyDetailMeta" class="muted"></p></div></div><button class="icon-btn square" type="button" data-close="agencyDetailModal">×</button></div>
+        <div id="agencyDetailContent" class="detail-content"></div>
+      </div>
+    </dialog>
+
+    <dialog id="profileModal" class="modal profile-modal">
+      <form method="dialog" id="profileForm">
+        <div class="modal-head"><div><span class="eyebrow">MI PERFIL</span><h3>Personalizar usuario</h3></div><button class="icon-btn square" type="button" data-close="profileModal">×</button></div>
+        <div class="profile-editor">
+          <div class="avatar avatar-large" id="profileAvatarPreview">U</div>
+          <div class="profile-fields">
+            <label><span>Nombre visible</span><input id="profileName" required /></label>
+            <label><span>Foto de perfil</span><input id="profileImage" type="file" accept="image/*" /></label>
+            <small>La imagen se ajusta automáticamente para usarla en movimientos e impresiones.</small>
+          </div>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="profileModal">Cancelar</button><button class="primary-btn" type="submit">Guardar perfil</button></div>
+      </form>
     </dialog>
   </div>
 
