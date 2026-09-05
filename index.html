@@ -44,12 +44,17 @@
         </div>
         <nav class="nav-list" id="mainNav">
           <button class="nav-item active" data-view="dashboard">⌂ <span>Inicio</span></button>
+          <button class="nav-item" data-view="clients">♙ <span>Clientes</span></button>
+          <button class="nav-item" data-view="crm">◎ <span>CRM Global</span></button>
+          <button class="nav-item" data-view="quotes">▧ <span>Cotizaciones</span></button>
+          <button class="nav-item" data-view="reservations">▣ <span>Reservas</span></button>
           <button class="nav-item" data-view="calendar">▦ <span>Calendario</span></button>
           <button class="nav-item" data-view="departures">✈ <span>Salidas</span></button>
-          <button class="nav-item" data-view="crm">◎ <span>CRM Global</span></button>
           <button class="nav-item pink-only-nav" data-view="agencies"><img class="nav-mini-logo" src="assets/pink-logo.png" alt="" /><span>Agencias Pink</span></button>
           <button class="nav-item" data-view="payments">$ <span>Pagos</span></button>
           <button class="nav-item" data-view="billing">▤ <span>Facturación</span></button>
+          <button class="nav-item" data-view="documents">▥ <span>Documentos</span></button>
+          <button class="nav-item" data-view="reports">◫ <span>Reportes</span></button>
         </nav>
         <div class="sidebar-footer">
           <div class="team-brands-title">Operación por marca</div>
@@ -69,6 +74,7 @@
         <header class="topbar">
           <div><span class="eyebrow" id="pageEyebrow">OPERACIÓN GENERAL</span><h2 id="pageTitle">Inicio</h2></div>
           <div class="topbar-actions">
+            <input class="search-input global-search-v2" id="globalSearchV2" placeholder="Buscar cliente, reserva, destino...  Ctrl+K" aria-label="Buscar en Travel Ops" />
             <select id="brandFilter" aria-label="Filtrar por marca">
               <option value="all">Pink + Velora</option><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option>
             </select>
@@ -83,6 +89,7 @@
             <article class="stat-card warning"><span>Cobranza pendiente</span><strong id="statPending">$0</strong><small>Saldo por cobrar</small></article>
             <article class="stat-card"><span>Facturas pendientes</span><strong id="statBilling">0</strong><small>Reservas por atender</small></article>
           </div>
+          <div class="stats-grid v2-dashboard-strip" id="v2DashboardStrip"></div>
           <div class="dashboard-grid">
             <section class="panel"><div class="panel-head"><div><span class="eyebrow">PRÓXIMAMENTE</span><h3>Salidas</h3></div><button class="text-btn" data-jump="calendar" type="button">Ver calendario →</button></div><div class="departure-list" id="upcomingDepartures"></div></section>
             <section class="panel"><div class="panel-head"><div><span class="eyebrow">CRM GLOBAL</span><h3>Seguimientos</h3></div><button class="text-btn" data-jump="crm" type="button">Abrir CRM →</button></div><div class="task-list" id="todayFollowups"></div></section>
@@ -106,6 +113,37 @@
         <section class="view" id="crmView">
           <div class="section-head"><div><span class="eyebrow">VISIBLE PARA TODO EL EQUIPO</span><h3>CRM Global</h3></div><button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button></div>
           <div class="pipeline" id="crmPipeline"></div>
+        </section>
+
+        <section class="view" id="clientsView">
+          <div class="section-head"><div><span class="eyebrow">BASE COMPARTIDA</span><h3>Clientes</h3></div><div class="inline-actions"><input class="search-input" id="clientSearchV2" placeholder="Buscar cliente..." /><button class="primary-btn compact" id="newClientBtnV2" type="button">+ Nuevo cliente</button></div></div>
+          <section class="panel table-panel"><div class="table-tools-v2"><strong id="clientCountV2">0 clientes</strong><small>Clientes y agencias que participan en cotizaciones y expedientes.</small></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Contacto</th><th>Reservas</th><th>Valor total</th><th>Pagado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="clientsBodyV2"></tbody></table></div></section>
+        </section>
+
+        <section class="view" id="quotesView">
+          <div class="section-head"><div><span class="eyebrow">VENTAS</span><h3>Cotizaciones</h3></div><div class="inline-actions"><button class="ghost-btn compact" id="quoteHistoryBtnV2" type="button">Historial <span id="quoteHistoryCountV2">0</span></button><button class="primary-btn compact" id="newQuoteBtnV2" type="button">+ Nueva cotización</button></div></div>
+          <div class="quotes-board-v2" id="quotesBoardV2"></div>
+          <section class="panel table-panel quote-history-v2" id="quoteHistoryPanelV2" hidden><div class="panel-head"><div><span class="eyebrow">HISTORIAL</span><h3>Caducadas y convertidas</h3></div></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Destino</th><th>Fechas</th><th>Precio</th><th>Resultado</th><th></th></tr></thead><tbody id="quoteHistoryBodyV2"></tbody></table></div></section>
+        </section>
+
+        <section class="view" id="reservationsView">
+          <div class="section-head"><div><span class="eyebrow">EXPEDIENTES</span><h3>Reservas</h3></div><div class="inline-actions"><input class="search-input" id="reservationSearchV2" placeholder="Cliente, destino o código..." /><button class="primary-btn compact" id="newReservationBtnV2" type="button">+ Nueva reserva</button></div></div>
+          <div class="reservations-list-v2" id="reservationsListV2"></div>
+        </section>
+
+        <section class="view" id="documentsView">
+          <div class="section-head"><div><span class="eyebrow">EXPEDIENTES</span><h3>Documentos</h3><p class="muted-toolbar">Genera documentos internos listos para imprimir o guardar como PDF.</p></div></div>
+          <div class="doc-grid-v2">
+            <article class="doc-card-v2"><span>▧</span><h3>Voucher</h3><p>Confirmación de servicios, pasajeros y viaje con la marca correspondiente.</p><button class="primary-btn compact" type="button" data-doc-type-v2="Voucher">Generar</button></article>
+            <article class="doc-card-v2"><span>✈</span><h3>Itinerario</h3><p>Resumen de vuelos, hospedaje, traslados, actividades y pasajeros.</p><button class="primary-btn compact" type="button" data-doc-type-v2="Itinerario">Generar</button></article>
+            <article class="doc-card-v2"><span>$</span><h3>Recibo de pago</h3><p>Comprobante de abono con total, pagado acumulado y saldo actualizado.</p><button class="primary-btn compact" type="button" data-doc-type-v2="Recibo de pago">Generar</button></article>
+          </div>
+        </section>
+
+        <section class="view" id="reportsView">
+          <div class="section-head"><div><span class="eyebrow">ANÁLISIS INTERNO</span><h3>Reportes</h3></div><label class="report-month-v2"><span>Mes</span><input id="reportMonthV2" type="month" value="2026-09" /></label></div>
+          <div class="report-summary-grid-v2" id="reportSummaryV2"></div>
+          <section class="panel table-panel"><div class="panel-head"><div><span class="eyebrow">DESTINOS</span><h3>Desempeño por destino</h3></div></div><div class="table-wrap"><table><thead><tr><th>Destino</th><th>Reservas</th><th>Pax</th><th>Ventas</th><th>Cobrado</th><th>Saldo</th></tr></thead><tbody id="reportDestinationsBodyV2"></tbody></table></div></section>
         </section>
 
         <section class="view" id="agenciesView">
@@ -150,12 +188,14 @@
 
         <section class="view" id="paymentsView">
           <div class="section-head"><div><span class="eyebrow">COBRANZA</span><h3>Pagos y saldos</h3></div></div>
-          <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Salida</th><th>Agencia / cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Último movimiento</th><th>Acciones</th></tr></thead><tbody id="paymentsTable"></tbody></table></div></div>
+          <div class="panel table-panel"><div class="panel-head"><div><span class="eyebrow">SALIDAS</span><h3>Cobranza operativa</h3></div></div><div class="table-wrap"><table><thead><tr><th>Salida</th><th>Agencia / cliente</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Último movimiento</th><th>Acciones</th></tr></thead><tbody id="paymentsTable"></tbody></table></div></div>
+          <div class="panel table-panel v2-secondary-panel" id="reservationPaymentsPanel"></div>
         </section>
 
         <section class="view" id="billingView">
           <div class="section-head"><div><span class="eyebrow">FACTURACIÓN</span><h3>Estado de facturas</h3></div></div>
-          <div class="panel table-panel"><div class="table-wrap"><table><thead><tr><th>Salida</th><th>Agencia / cliente</th><th>Marca</th><th>¿Factura?</th><th>Estatus</th><th>Último movimiento</th><th>Acciones</th></tr></thead><tbody id="billingTable"></tbody></table></div></div>
+          <div class="panel table-panel"><div class="panel-head"><div><span class="eyebrow">SALIDAS</span><h3>Facturación operativa</h3></div></div><div class="table-wrap"><table><thead><tr><th>Salida</th><th>Agencia / cliente</th><th>Marca</th><th>¿Factura?</th><th>Estatus</th><th>Último movimiento</th><th>Acciones</th></tr></thead><tbody id="billingTable"></tbody></table></div></div>
+          <div class="panel table-panel v2-secondary-panel" id="reservationBillingPanel"></div>
         </section>
       </main>
     </div>
@@ -287,6 +327,48 @@
       </div>
     </dialog>
 
+
+    <dialog id="clientModalV2" class="modal">
+      <form method="dialog" id="clientFormV2"><input type="hidden" id="clientIdV2" />
+        <div class="modal-head"><div><span class="eyebrow">CLIENTES</span><h3 id="clientModalTitleV2">Nuevo cliente</h3></div><button class="icon-btn square" type="button" data-close="clientModalV2">×</button></div>
+        <div class="form-grid"><label><span>Marca</span><select id="clientBrandV2"><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label><label><span>Tipo</span><select id="clientTypeV2"><option value="cliente">Cliente</option><option value="agencia">Agencia</option></select></label><label class="full"><span>Nombre</span><input id="clientNameV2" required /></label><label><span>WhatsApp</span><input id="clientPhoneV2" /></label><label><span>Correo</span><input id="clientEmailV2" type="email" /></label><label><span>Estado</span><select id="clientStatusV2"><option value="prospecto">Prospecto</option><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label><label class="full"><span>Notas</span><textarea id="clientNotesV2" rows="3"></textarea></label></div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="clientModalV2">Cancelar</button><button class="primary-btn" type="submit">Guardar cliente</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="quoteModalV2" class="modal wide">
+      <form method="dialog" id="quoteFormV2"><input type="hidden" id="quoteIdV2" />
+        <div class="modal-head"><div><span class="eyebrow">VENTAS</span><h3 id="quoteModalTitleV2">Nueva cotización</h3></div><button class="icon-btn square" type="button" data-close="quoteModalV2">×</button></div>
+        <div class="form-grid">
+          <label><span>Marca</span><select id="quoteBrandV2"><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label><label><span>Cliente</span><input id="quoteClientV2" list="quoteClientListV2" autocomplete="off" required /><datalist id="quoteClientListV2"></datalist></label>
+          <label><span>Destino</span><input id="quoteDestinationV2" required /></label><label><span>Fecha de salida</span><input id="quoteStartV2" type="date" required /></label><label><span>Fecha de regreso</span><input id="quoteEndV2" type="date" required /></label><label><span>Adultos</span><input id="quoteAdultsV2" type="number" min="1" value="2" required /></label><label><span>Menores</span><input id="quoteMinorsV2" type="number" min="0" value="0" required /></label>
+          <div class="full quote-services-box-v2"><div class="quote-services-head-v2"><span class="eyebrow">SERVICIOS COMUNES</span><strong>Aplican a todas las opciones</strong></div><div class="form-grid compact-grid-v2"><label><span>Aerolínea</span><input id="quoteAirlineV2" /></label><label><span>Vuelo salida</span><input id="quoteFlightOutV2" type="datetime-local" /></label><label><span>Vuelo regreso</span><input id="quoteFlightInV2" type="datetime-local" /></label><label><span>Traslado</span><input id="quoteTransferV2" /></label><label><span>Tour / actividad</span><input id="quoteTourV2" /></label><label><span>Precio actividad</span><input id="quoteTourPriceV2" type="number" min="0" step="0.01" /></label></div></div>
+          <div class="full quote-options-box-v2"><div class="quote-options-head-v2"><div><span class="eyebrow">ALTERNATIVAS</span><strong>Hasta 3 opciones</strong><small>Costo interno nunca se comparte con el cliente.</small></div><button class="ghost-btn compact" id="addQuoteOptionBtnV2" type="button">+ Agregar opción</button></div><div id="quoteOptionsEditorV2"></div></div>
+          <label><span>Meses sin intereses</span><input id="quoteMsiV2" type="number" min="0" step="0.01" placeholder="Solo agente · se suma al precio final" /></label><label><span>Vigencia</span><select id="quoteValidityV2"><option value="24">24 horas</option><option value="48" selected>48 horas</option><option value="72">72 horas</option></select></label><label><span>Estado</span><select id="quoteStatusV2"><option value="borrador">Por preparar</option><option value="enviada">Enviada</option><option value="aceptada">Aceptada</option></select></label><label class="full"><span>Notas para el cliente</span><textarea id="quoteNotesV2" rows="3"></textarea></label>
+          <div class="full internal-summary-v2"><strong>Resumen interno</strong><div id="quoteInternalSummaryV2"></div></div>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="quoteModalV2">Cancelar</button><button class="primary-btn" type="submit">Guardar cotización</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="shareQuoteModalV2" class="modal"><div class="detail-shell"><div class="modal-head"><div><span class="eyebrow">COMPARTIR</span><h3>Enviar cotización</h3></div><button class="icon-btn square" type="button" data-close="shareQuoteModalV2">×</button></div><div id="shareQuoteMetaV2" class="share-meta-v2"></div><label class="share-link-v2"><span>Enlace del cliente</span><input id="shareQuoteLinkV2" readonly /></label><div class="share-actions-v2"><button class="ghost-btn compact" id="copyQuoteLinkV2" type="button">Copiar</button><button class="ghost-btn compact" id="openQuoteLinkV2" type="button">Abrir</button><button class="ghost-btn compact" id="quoteWhatsAppV2" type="button">WhatsApp</button><button class="ghost-btn compact" id="quoteEmailV2" type="button">Correo</button></div></div></dialog>
+
+    <dialog id="quoteConvertModalV2" class="modal"><div class="detail-shell"><div class="modal-head"><div><span class="eyebrow">CONVERTIR</span><h3>Elige la opción reservada</h3></div><button class="icon-btn square" type="button" data-close="quoteConvertModalV2">×</button></div><div class="quote-choice-list-v2" id="quoteConvertChoicesV2"></div></div></dialog>
+
+    <dialog id="reservationModalV2" class="modal wide"><form method="dialog" id="reservationFormV2"><input type="hidden" id="reservationIdV2" /><input type="hidden" id="reservationSourceQuoteV2" /><input type="hidden" id="reservationSourceOptionV2" /><div class="modal-head"><div><span class="eyebrow">EXPEDIENTE</span><h3 id="reservationModalTitleV2">Nueva reserva</h3></div><button class="icon-btn square" type="button" data-close="reservationModalV2">×</button></div><div class="form-grid">
+      <label><span>Marca</span><select id="reservationBrandV2"><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label><label><span>Cliente</span><input id="reservationClientV2" list="reservationClientListV2" required /><datalist id="reservationClientListV2"></datalist></label><label class="full"><span>Asociar a salida</span><select id="reservationDepartureV2"></select></label><label><span>Destino</span><input id="reservationDestinationV2" required /></label><label><span>Salida</span><input id="reservationStartV2" type="date" required /></label><label><span>Regreso</span><input id="reservationEndV2" type="date" required /></label><label><span>Adultos</span><input id="reservationAdultsV2" type="number" min="1" value="2" /></label><label><span>Menores</span><input id="reservationMinorsV2" type="number" min="0" value="0" /></label><label><span>Hotel</span><input id="reservationHotelV2" /></label><label><span>Aerolínea</span><input id="reservationAirlineV2" /></label><label><span>Vuelo salida</span><input id="reservationFlightOutV2" type="datetime-local" /></label><label><span>Vuelo regreso</span><input id="reservationFlightInV2" type="datetime-local" /></label><label><span>Traslado</span><input id="reservationTransferV2" /></label><label><span>Tour / actividad</span><input id="reservationTourV2" /></label><label><span>Precio actividad</span><input id="reservationTourPriceV2" type="number" min="0" step="0.01" /></label><label><span>Costo interno</span><input id="reservationInternalCostV2" type="number" min="0" step="0.01" /></label><label><span>MSI / cargo interno</span><input id="reservationMsiV2" type="number" min="0" step="0.01" /></label><label><span>Total final</span><input id="reservationTotalV2" type="number" min="0" step="0.01" required /></label><label><span>Estado</span><select id="reservationStatusV2"><option value="confirmada">Confirmada</option><option value="por_confirmar">Por confirmar</option><option value="cancelada">Cancelada</option></select></label><label><span>¿Requiere factura?</span><select id="reservationInvoiceRequiredV2"><option value="false">No</option><option value="true">Sí</option></select></label><label><span>Estatus factura</span><select id="reservationBillingStatusV2"><option value="no_solicitada">No solicitada</option><option value="solicitada">Solicitada</option><option value="datos_pendientes">Datos pendientes</option><option value="en_proceso">En proceso</option><option value="facturada">Facturada</option><option value="cancelada">Cancelada</option></select></label><label class="full"><span>Notas</span><textarea id="reservationNotesV2" rows="3"></textarea></label>
+      </div><div class="modal-actions"><button class="ghost-btn" type="button" data-close="reservationModalV2">Cancelar</button><button class="primary-btn" type="submit">Guardar reserva</button></div></form></dialog>
+
+    <dialog id="reservationDetailModalV2" class="modal wide"><div class="detail-shell"><div class="modal-head"><div><div id="reservationDetailBrandV2"></div><h3 id="reservationDetailTitleV2">Reserva</h3><p id="reservationDetailMetaV2" class="muted"></p></div><button class="icon-btn square" type="button" data-close="reservationDetailModalV2">×</button></div><div class="detail-actions-v2"><button class="ghost-btn compact" id="editReservationBtnV2" type="button">Editar</button><button class="ghost-btn compact" id="shareReservationBtnV2" type="button">Compartir</button><button class="small-btn danger" id="deleteReservationBtnV2" type="button">Borrar</button></div><div class="detail-content" id="reservationDetailContentV2"></div></div></dialog>
+
+    <dialog id="reservationPassengerModalV2" class="modal wide"><form method="dialog" id="reservationPassengerFormV2"><div class="modal-head"><div><span class="eyebrow">PASAJEROS</span><h3>Captura de pasajeros</h3><p class="muted" id="reservationPassengerSubtitleV2"></p></div><button class="icon-btn square" type="button" data-close="reservationPassengerModalV2">×</button></div><div class="passenger-editor-v2" id="reservationPassengerEditorV2"></div><div class="modal-actions"><button class="ghost-btn" type="button" data-close="reservationPassengerModalV2">Cancelar</button><button class="primary-btn" type="submit">Guardar pasajeros</button></div></form></dialog>
+
+    <dialog id="reservationPaymentModalV2" class="modal"><form method="dialog" id="reservationPaymentFormV2"><input type="hidden" id="reservationPaymentIdV2" /><div class="modal-head"><div><span class="eyebrow">COBRANZA</span><h3 id="reservationPaymentTitleV2">Registrar pago</h3><p class="muted" id="reservationPaymentMetaV2"></p></div><button class="icon-btn square" type="button" data-close="reservationPaymentModalV2">×</button></div><div class="form-grid"><label><span>Monto</span><input id="reservationPaymentAmountV2" type="number" min="0.01" step="0.01" required /></label><label><span>Fecha</span><input id="reservationPaymentDateV2" type="date" required /></label><label><span>Método</span><select id="reservationPaymentMethodV2"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Depósito</option><option>Otro</option></select></label><label><span>Referencia</span><input id="reservationPaymentReferenceV2" /></label><label class="full"><span>Notas</span><textarea id="reservationPaymentNotesV2" rows="3"></textarea></label></div><div class="modal-actions"><button class="ghost-btn" type="button" data-close="reservationPaymentModalV2">Cancelar</button><button class="primary-btn" type="submit">Guardar pago</button></div></form></dialog>
+
+    <dialog id="shareReservationModalV2" class="modal"><div class="detail-shell"><div class="modal-head"><div><span class="eyebrow">COMPARTIR</span><h3>Enviar reserva</h3></div><button class="icon-btn square" type="button" data-close="shareReservationModalV2">×</button></div><div id="shareReservationMetaV2" class="share-meta-v2"></div><label class="share-link-v2"><span>Enlace del cliente</span><input id="shareReservationLinkV2" readonly /></label><div class="share-actions-v2"><button class="ghost-btn compact" id="copyReservationLinkV2" type="button">Copiar</button><button class="ghost-btn compact" id="openReservationLinkV2" type="button">Abrir</button><button class="ghost-btn compact" id="reservationWhatsAppV2" type="button">WhatsApp</button><button class="ghost-btn compact" id="reservationEmailV2" type="button">Correo</button></div></div></dialog>
+
+    <dialog id="documentModalV2" class="modal"><form method="dialog" id="documentFormV2"><div class="modal-head"><div><span class="eyebrow">DOCUMENTO</span><h3 id="documentModalTitleV2">Generar</h3></div><button class="icon-btn square" type="button" data-close="documentModalV2">×</button></div><div class="form-grid"><label class="full"><span>Reserva</span><select id="documentReservationV2"></select></label><label class="full" id="documentPaymentWrapV2"><span>Pago</span><select id="documentPaymentV2"></select><small id="documentPaymentEmptyV2">No hay pagos para esta reserva.</small></label></div><div class="modal-actions"><button class="ghost-btn" type="button" data-close="documentModalV2">Cancelar</button><button class="primary-btn" type="submit">Generar documento</button></div></form></dialog>
+
     <dialog id="profileModal" class="modal profile-modal">
       <form method="dialog" id="profileForm">
         <div class="modal-head"><div><span class="eyebrow">MI PERFIL</span><h3>Personalizar usuario</h3></div><button class="icon-btn square" type="button" data-close="profileModal">×</button></div>
@@ -303,7 +385,10 @@
     </dialog>
   </div>
 
+  <section class="public-portal-v2 hidden" id="publicPortalV2"></section>
+
   <script src="js/supabase.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/v2.js"></script>
 </body>
 </html>
