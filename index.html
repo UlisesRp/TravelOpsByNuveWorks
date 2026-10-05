@@ -47,6 +47,7 @@
           <button class="nav-item" data-view="calendar">▦ <span>Calendario</span></button>
           <button class="nav-item" data-view="departures">✈ <span>Salidas</span></button>
           <button class="nav-item" data-view="crm">◎ <span>CRM Global</span></button>
+          <button class="nav-item" data-view="quotes">▧ <span>Cotizaciones</span></button>
           <button class="nav-item pink-only-nav" data-view="agencies"><img class="nav-mini-logo" src="assets/pink-logo.png" alt="" /><span>Agencias Pink</span></button>
           <button class="nav-item" data-view="payments">$ <span>Pagos</span></button>
           <button class="nav-item" data-view="billing">▤ <span>Facturación</span></button>
@@ -106,6 +107,20 @@
         <section class="view" id="crmView">
           <div class="section-head"><div><span class="eyebrow">VISIBLE PARA TODO EL EQUIPO</span><h3>CRM Global</h3></div><button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button></div>
           <div class="pipeline" id="crmPipeline"></div>
+        </section>
+
+        <section class="view" id="quotesView">
+          <div class="section-head quote-section-head">
+            <div><span class="eyebrow">VENTAS</span><h3>Cotizaciones</h3><p class="muted-toolbar">Cotizaciones Pink y Velora con formato listo para imprimir o guardar en PDF.</p></div>
+            <div class="quote-head-actions"><select id="quoteStatusFilter"><option value="all">Todos los estados</option><option value="borrador">Borrador</option><option value="enviada">Enviada</option><option value="aceptada">Aceptada</option><option value="caducada">Caducada</option></select><input class="search-input" id="quoteSearch" placeholder="Buscar cliente, destino, folio..." /><button class="primary-btn compact" id="newQuoteBtn" type="button">+ Nueva cotización</button></div>
+          </div>
+          <div class="quote-stats-grid">
+            <article class="stat-card"><span>Cotizaciones</span><strong id="quoteStatCount">0</strong><small>En el filtro actual</small></article>
+            <article class="stat-card"><span>Enviadas</span><strong id="quoteStatSent">0</strong><small>Por seguimiento</small></article>
+            <article class="stat-card"><span>Aceptadas</span><strong id="quoteStatAccepted">0</strong><small>Cerradas</small></article>
+            <article class="stat-card warning"><span>Valor cotizado</span><strong id="quoteStatValue">$0</strong><small>Mejor opción de cada cotización</small></article>
+          </div>
+          <div class="cards-grid quote-cards-grid" id="quoteCards"></div>
         </section>
 
         <section class="view" id="agenciesView">
@@ -219,6 +234,34 @@
       </form>
     </dialog>
 
+    <dialog id="quoteModal" class="modal wide quote-modal">
+      <form method="dialog" id="quoteForm">
+        <input type="hidden" id="quoteId" />
+        <div class="modal-head"><div><span class="eyebrow">COTIZACIÓN</span><h3 id="quoteModalTitle">Nueva cotización</h3></div><button class="icon-btn square" type="button" data-close="quoteModal">×</button></div>
+        <div class="form-grid quote-form-grid">
+          <label><span>Marca</span><select id="quoteBrand" required><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label>
+          <label><span>Agencia / cliente</span><input id="quoteCustomer" list="quoteCustomerList" required autocomplete="off" placeholder="Selecciona o escribe..." /><datalist id="quoteCustomerList"></datalist></label>
+          <label class="full"><span>Destino</span><input id="quoteDestination" required placeholder="Ej. Mazatlán, Sinaloa" /></label>
+          <label><span>Fecha de salida</span><input id="quoteStart" type="date" required /></label>
+          <label><span>Fecha de regreso</span><input id="quoteEnd" type="date" required /></label>
+          <label class="full"><span>Pasajeros</span><input id="quotePassengers" required placeholder="Ej. 4 adultos + 1 menor (1 año)" /></label>
+          <label class="full"><span>Habitaciones</span><input id="quoteRooms" required placeholder="Ej. 2 habitaciones: 1 doble con menor de 1 año + 1 doble" /></label>
+          <label><span>Apartado %</span><input id="quoteDepositPercent" type="number" min="0" max="100" step="0.01" value="30" required /></label>
+          <label><span>Fecha límite para liquidar</span><input id="quoteLiquidationDate" type="date" /></label>
+          <label><span>Comisión agencias %</span><input id="quoteCommissionPercent" type="number" min="0" max="100" step="0.01" value="15" /></label>
+          <label><span>Estatus</span><select id="quoteStatus"><option value="borrador">Borrador</option><option value="enviada">Enviada</option><option value="aceptada">Aceptada</option><option value="caducada">Caducada</option></select></label>
+          <div class="full quote-options-box">
+            <div class="quote-options-head"><div><span class="field-label">Opciones de hospedaje</span><small>Captura de 1 a 3 opciones.</small></div><button class="ghost-btn compact" id="addQuoteOptionBtn" type="button">+ Agregar opción</button></div>
+            <div id="quoteOptionsEditor" class="quote-options-editor"></div>
+          </div>
+          <label class="full"><span>Incluye <small>(un concepto por línea)</small></span><textarea id="quoteIncludes" rows="5" placeholder="Hospedaje durante 3 noches.
+Plan todo incluido: desayunos, comidas, cenas, snacks y bebidas ilimitadas."></textarea></label>
+          <label class="full"><span>Condiciones adicionales <small>(opcional, una por línea)</small></span><textarea id="quoteExtraConditions" rows="4" placeholder="Precios sujetos a disponibilidad al momento de reservar."></textarea></label>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" type="button" data-close="quoteModal">Cancelar</button><button class="primary-btn" type="submit">Guardar cotización</button></div>
+      </form>
+    </dialog>
+
     <dialog id="passengerModal" class="modal">
       <form method="dialog" id="passengerForm">
         <input type="hidden" id="passengerId" />
@@ -305,5 +348,6 @@
 
   <script src="js/supabase.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/quotes.js"></script>
 </body>
 </html>
