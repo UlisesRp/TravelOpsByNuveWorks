@@ -1,5 +1,5 @@
 // =========================================================
-// Travel Ops v1.9.2 - Cotizaciones + envío al cliente
+// Travel Ops v1.9.3 - Cotizaciones + comisión incluida en precio final
 // Pink Sky Travel + Velora Travel
 // =========================================================
 
@@ -43,8 +43,13 @@ function quoteRoomCount(text = "") {
   const m = String(text).match(/\b(\d+)\b/);
   return m ? Number(m[1]) : 0;
 }
+function quoteFinalTotal(q, baseTotal) {
+  const base = Number(baseTotal || 0);
+  const commission = Number(q?.commissionPercent || 0);
+  return base * (1 + commission / 100);
+}
 function quoteBestTotal(q) {
-  const vals = (q.options || []).map(o => Number(o.total || 0)).filter(n => n > 0);
+  const vals = (q.options || []).map(o => quoteFinalTotal(q, o.total)).filter(n => n > 0);
   return vals.length ? Math.min(...vals) : 0;
 }
 function quoteDateRangeUpper(q) {
@@ -225,7 +230,7 @@ function quoteCardHTML(q) {
   return `<article class="quote-card">
     <div class="quote-card-top"><div><span class="quote-folio">${escapeHTML(q.folio)}</span><h4>${escapeHTML(q.destination)}</h4><p>${escapeHTML(q.customer || "Sin agencia / cliente")}</p></div>${brandChipHTML(q.brand, true)}</div>
     <div class="quote-card-meta"><span>${q.start ? dateFmt.format(parseDate(q.start)) : "—"} → ${q.end ? dateFmt.format(parseDate(q.end)) : "—"}</span><span>${q.options.length} ${q.options.length === 1 ? "opción" : "opciones"}</span></div>
-    <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(o.total)}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
+    <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(quoteFinalTotal(q, o.total))}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
     <div class="quote-card-bottom"><div><span class="status-chip ${quoteStatusClass(q.status)}">${quoteStatusLabel(q.status)}</span>${best ? `<strong>Desde ${quoteMoney.format(best)}</strong>` : ""}</div><small>Creó ${escapeHTML(creator.name)} · ${quoteDateTime.format(new Date(q.createdAt))}</small></div>
     <div class="quote-card-actions"><button class="small-btn" data-quote-share="${q.id}">Enviar al cliente</button><button class="small-btn" data-quote-print="${q.id}">Imprimir / PDF</button><button class="small-btn" data-quote-edit="${q.id}">Editar</button><button class="small-btn" data-quote-duplicate="${q.id}">Duplicar</button><button class="small-btn danger" data-quote-delete="${q.id}">Borrar</button></div>
   </article>`;
@@ -234,7 +239,7 @@ function quoteCardHTML(q) {
 function blankQuoteOption() { return { id: uid("qopt"), hotel: "", plan: "", total: 0 }; }
 function renderQuoteOptionsEditor(options = quoteOptionsDraft) {
   quoteOptionsDraft = (options.length ? options : [blankQuoteOption()]).slice(0, 3).map(o => ({ ...blankQuoteOption(), ...o }));
-  $("#quoteOptionsEditor").innerHTML = quoteOptionsDraft.map((o, i) => `<article class="quote-option-editor" data-option-id="${escapeHTML(o.id)}"><div class="quote-option-title"><strong>Opción ${i + 1}</strong>${i ? `<button class="mini-remove" type="button" data-remove-qopt="${escapeHTML(o.id)}">×</button>` : ""}</div><div class="quote-option-fields"><label><span>Hotel</span><input data-qopt="hotel" value="${escapeHTML(o.hotel)}" placeholder="Ej. Royal Villas" required /></label><label><span>Plan</span><input data-qopt="plan" value="${escapeHTML(o.plan)}" placeholder="Ej. Todo incluido" required /></label><label><span>Total</span><input data-qopt="total" type="number" min="0.01" step="0.01" value="${o.total || ""}" placeholder="0.00" required /></label></div></article>`).join("");
+  $("#quoteOptionsEditor").innerHTML = quoteOptionsDraft.map((o, i) => `<article class="quote-option-editor" data-option-id="${escapeHTML(o.id)}"><div class="quote-option-title"><strong>Opción ${i + 1}</strong>${i ? `<button class="mini-remove" type="button" data-remove-qopt="${escapeHTML(o.id)}">×</button>` : ""}</div><div class="quote-option-fields"><label><span>Hotel</span><input data-qopt="hotel" value="${escapeHTML(o.hotel)}" placeholder="Ej. Royal Villas" required /></label><label><span>Plan</span><input data-qopt="plan" value="${escapeHTML(o.plan)}" placeholder="Ej. Todo incluido" required /></label><label><span>Total base</span><input data-qopt="total" type="number" min="0.01" step="0.01" value="${o.total || ""}" placeholder="0.00" required /><small class="quote-option-help">Se agregará la comisión al precio final.</small></label></div></article>`).join("");
   $("#addQuoteOptionBtn").disabled = quoteOptionsDraft.length >= 3;
   $$('[data-remove-qopt]', $("#quoteOptionsEditor")).forEach(btn => btn.addEventListener("click", () => {
     syncQuoteOptionDraft();
@@ -381,8 +386,8 @@ function quoteDocumentHTML(q, { publicView = false } = {}) {
     q.commissionPercent > 0 ? `Tarifas comisionables al ${q.commissionPercent}% para agencias de viajes.` : "",
     ...q.extraConditions
   ].filter(Boolean);
-  const optionsRows = q.options.map(o => { const deposit = Number(o.total) * Number(q.depositPercent || 0) / 100; return `<tr><td><strong>${escapeHTML(o.hotel)}</strong></td><td>${escapeHTML(o.plan)}</td><td><strong>${quoteMoney.format(o.total)}</strong></td><td><strong>${quoteMoney.format(deposit)}</strong></td></tr>`; }).join("");
-  const summaryRows = q.options.map(o => { const deposit = Number(o.total) * Number(q.depositPercent || 0) / 100; return `<tr><td><strong>${escapeHTML(o.hotel)}</strong></td><td><strong>${quoteMoney.format(o.total)}</strong></td><td><strong>${quoteMoney.format(deposit)}</strong></td><td>${quoteMoney.format(Number(o.total) - deposit)}</td></tr>`; }).join("");
+  const optionsRows = q.options.map(o => { const finalTotal = quoteFinalTotal(q, o.total); const deposit = finalTotal * Number(q.depositPercent || 0) / 100; return `<tr><td><strong>${escapeHTML(o.hotel)}</strong></td><td>${escapeHTML(o.plan)}</td><td><strong>${quoteMoney.format(finalTotal)}</strong></td><td><strong>${quoteMoney.format(deposit)}</strong></td></tr>`; }).join("");
+  const summaryRows = q.options.map(o => { const finalTotal = quoteFinalTotal(q, o.total); const deposit = finalTotal * Number(q.depositPercent || 0) / 100; return `<tr><td><strong>${escapeHTML(o.hotel)}</strong></td><td><strong>${quoteMoney.format(finalTotal)}</strong></td><td><strong>${quoteMoney.format(deposit)}</strong></td><td>${quoteMoney.format(finalTotal - deposit)}</td></tr>`; }).join("");
   const created = new Date(q.createdAt || nowISO());
   const brandFooter = q.brand === "pink" ? "PINK SKY TRAVEL · Mayorista de viajes" : "VELORA TRAVEL";
   const toolbar = publicView ? `<div class="client-toolbar"><span>Cotización ${escapeHTML(q.folio)}</span><button type="button" onclick="window.print()">Imprimir / Guardar PDF</button></div>` : "";
