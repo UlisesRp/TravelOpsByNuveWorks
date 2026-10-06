@@ -1,0 +1,27 @@
+TRAVEL OPS v1.10 — AGENDA EN CALENDARIO
+========================================
+
+OBJETIVO
+- Hacer clic en cualquier fecha del calendario.
+- Agregar notas, citas, recordatorios o tareas.
+- Hora opcional.
+- Marca opcional: General / Pink / Velora.
+- Estatus: Pendiente / Hecho / Cancelado.
+- Editar, borrar y marcar como hecho.
+- Mostrar cada elemento directamente dentro de la fecha.
+- Registrar usuario creador/editor mediante Supabase + auditoria.
+
+INSTALACION
+1) Supabase > SQL Editor > New query.
+2) Ejecutar completo supabase/migration_v1_10_calendar_entries.sql
+3) Resultado esperado: Success. No rows returned
+4) Reemplazar index.html y css/style.css por los de este paquete.
+5) Agregar js/calendar-events.js
+6) NO reemplazar js/app.js, js/quotes.js ni js/supabase.js si ya tienes las versiones actuales funcionando.
+7) Live Server > Ctrl+F5.
+8) Calendario > clic en una fecha > + Agregar.
+
+IMPORTANTE
+- La agenda es compartida entre usuarios autenticados de Travel Ops.
+- Las salidas siguen funcionando como antes; al hacer clic en una salida abre su detalle y NO el editor de agenda.
+- No hace falta tocar las tablas de cotizaciones, pagos, pasajeros ni rooming.
