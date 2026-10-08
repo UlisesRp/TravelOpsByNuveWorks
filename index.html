@@ -237,11 +237,13 @@
     <dialog id="quoteModal" class="modal wide quote-modal">
       <form method="dialog" id="quoteForm">
         <input type="hidden" id="quoteId" />
+        <input type="hidden" id="quoteCrmLeadId" />
         <div class="modal-head"><div><span class="eyebrow">COTIZACIÓN</span><h3 id="quoteModalTitle">Nueva cotización</h3></div><button class="icon-btn square" type="button" data-close="quoteModal">×</button></div>
         <div class="form-grid quote-form-grid">
           <label><span>Marca</span><select id="quoteBrand" required><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label>
-          <label><span>Agencia / cliente</span><input id="quoteCustomer" list="quoteCustomerList" required autocomplete="off" placeholder="Selecciona o escribe..." /><datalist id="quoteCustomerList"></datalist></label>
-          <label class="full"><span>Destino</span><input id="quoteDestination" required placeholder="Ej. Mazatlán, Sinaloa" /></label>
+          <label><span>Agencia / cliente</span><input id="quoteCustomer" list="quoteCustomerList" required autocomplete="off" placeholder="Selecciona CRM, agencia o cliente..." /><datalist id="quoteCustomerList"></datalist></label>
+          <label><span>WhatsApp / teléfono</span><input id="quoteCustomerPhone" placeholder="Se llena desde CRM o puedes capturarlo" /></label>
+          <label><span>Destino</span><input id="quoteDestination" required placeholder="Ej. Mazatlán, Sinaloa" /></label>
           <label><span>Fecha de salida</span><input id="quoteStart" type="date" required /></label>
           <label><span>Fecha de regreso</span><input id="quoteEnd" type="date" required /></label>
           <label class="full"><span>Pasajeros</span><input id="quotePassengers" required placeholder="Ej. 4 adultos + 1 menor (1 año)" /></label>

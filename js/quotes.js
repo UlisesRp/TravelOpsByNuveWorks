@@ -1,5 +1,5 @@
 // =========================================================
-// Travel Ops v1.9.3 - Cotizaciones + comisión incluida en precio final
+// Travel Ops v1.11 - CRM conectado con Cotizaciones
 // Pink Sky Travel + Velora Travel
 // =========================================================
 
@@ -73,7 +73,9 @@ function normalizeQuote(q) {
     id: q.id,
     folio: q.folio || "SIN FOLIO",
     brand: q.brand || "pink",
+    crmLeadId: q.crmLeadId || q.crm_lead_id || "",
     customer: q.customer || q.customer_name || "",
+    customerPhone: q.customerPhone || q.customer_phone || "",
     destination: q.destination || "",
     start: q.start || q.start_date || "",
     end: q.end || q.end_date || "",
@@ -113,14 +115,16 @@ async function hydrateQuotes() {
     { data: opts, error: oe },
     { data: agencies, error: ae },
     { data: bookings, error: be },
-    { data: departures, error: de }
+    { data: departures, error: de },
+    { data: crmLeads, error: ce }
   ] = await Promise.all([
     quotesSupabase.from("profiles").select("id,full_name,avatar_data_url"),
     quotesSupabase.from(QUOTE_TABLE).select("*").order("created_at", { ascending: false }),
     quotesSupabase.from(QUOTE_OPTIONS_TABLE).select("*").order("sort_order", { ascending: true }),
     quotesSupabase.from("agencies").select("id,name").order("name"),
     quotesSupabase.from("bookings").select("id,departure_id,customer_name,agency_id"),
-    quotesSupabase.from("departures").select("id,brand")
+    quotesSupabase.from("departures").select("id,brand"),
+    quotesSupabase.from("crm_leads").select("id,name,phone,brand,interest,status,notes").order("created_at", { ascending: false })
   ]);
 
   if (qe || oe) {
@@ -129,7 +133,7 @@ async function hydrateQuotes() {
     return;
   }
 
-  if (ae || be || de) console.warn("Travel Ops catálogo de clientes/agencias:", ae || be || de);
+  if (ae || be || de || ce) console.warn("Travel Ops catálogo de clientes/agencias/CRM:", ae || be || de || ce);
 
   quoteProfiles = new Map((profiles || []).map(p => [p.id, {
     id: p.id,
@@ -141,28 +145,42 @@ async function hydrateQuotes() {
     normalizeQuote({ ...row, options: (opts || []).filter(o => o.quote_id === row.id) })
   );
 
-  buildQuoteContacts(agencies || [], bookings || [], departures || []);
+  buildQuoteContacts(agencies || [], bookings || [], departures || [], crmLeads || []);
   renderQuoteCustomerList();
   renderQuotes();
 }
 
-function buildQuoteContacts(agencies = [], bookings = [], departures = []) {
+function buildQuoteContacts(agencies = [], bookings = [], departures = [], crmLeads = []) {
   const depBrand = new Map(departures.map(d => [d.id, d.brand]));
   const map = new Map();
 
-  const add = (name, brand, type) => {
+  const add = ({ name, brand, type, phone = "", interest = "", crmLeadId = "", source = "operacion" }) => {
     const clean = String(name || "").trim();
-    if (!clean) return;
+    if (!clean || !brand) return;
     const key = `${brand}|${normalizeAgencyName(clean)}`;
-    if (!map.has(key)) map.set(key, { name: clean, brand, type });
+    const current = map.get(key);
+    // CRM tiene prioridad porque trae teléfono, interés e ID de origen.
+    if (!current || source === "crm") {
+      map.set(key, { name: clean, brand, type, phone: String(phone || "").trim(), interest: String(interest || "").trim(), crmLeadId: crmLeadId || "", source });
+    }
   };
 
-  agencies.forEach(a => add(a.name, "pink", "Agencia"));
+  agencies.forEach(a => add({ name: a.name, brand: "pink", type: "Agencia", source: "agencia" }));
 
   bookings.forEach(b => {
     const brand = depBrand.get(b.departure_id) || (b.agency_id ? "pink" : "velora");
-    add(b.customer_name, brand, brand === "pink" ? "Agencia" : "Cliente");
+    add({ name: b.customer_name, brand, type: brand === "pink" ? "Agencia" : "Cliente", source: "operacion" });
   });
+
+  crmLeads.forEach(l => add({
+    name: l.name,
+    brand: l.brand,
+    type: "CRM",
+    phone: l.phone,
+    interest: l.interest,
+    crmLeadId: l.id,
+    source: "crm"
+  }));
 
   quoteContacts = [...map.values()].sort((a, b) =>
     a.name.localeCompare(b.name, "es", { sensitivity: "base" })
@@ -171,17 +189,19 @@ function buildQuoteContacts(agencies = [], bookings = [], departures = []) {
 
 function buildQuoteContactsFromState() {
   const map = new Map();
-  const add = (name, brand, type) => {
+  const add = ({ name, brand, type, phone = "", interest = "", crmLeadId = "", source = "operacion" }) => {
     const clean = String(name || "").trim();
-    if (!clean) return;
+    if (!clean || !brand) return;
     const key = `${brand}|${normalizeAgencyName(clean)}`;
-    if (!map.has(key)) map.set(key, { name: clean, brand, type });
+    const current = map.get(key);
+    if (!current || source === "crm") map.set(key, { name: clean, brand, type, phone: String(phone || "").trim(), interest: String(interest || "").trim(), crmLeadId: crmLeadId || "", source });
   };
 
-  (state.agencies || []).forEach(a => add(a.name, "pink", "Agencia"));
+  (state.agencies || []).forEach(a => add({ name: a.name, brand: "pink", type: "Agencia", source: "agencia" }));
   (state.departures || []).forEach(dep =>
-    (dep.bookings || []).forEach(b => add(b.name, dep.brand, dep.brand === "pink" ? "Agencia" : "Cliente"))
+    (dep.bookings || []).forEach(b => add({ name: b.name, brand: dep.brand, type: dep.brand === "pink" ? "Agencia" : "Cliente", source: "operacion" }))
   );
+  (state.leads || []).forEach(l => add({ name: l.name, brand: l.brand, type: "CRM", phone: l.phone, interest: l.interest, crmLeadId: l.id, source: "crm" }));
 
   quoteContacts = [...map.values()].sort((a, b) =>
     a.name.localeCompare(b.name, "es", { sensitivity: "base" })
@@ -193,9 +213,30 @@ function renderQuoteCustomerList() {
   if (!list) return;
   const brand = $("#quoteBrand")?.value || (state.brand === "velora" ? "velora" : "pink");
   const rows = quoteContacts.filter(c => c.brand === brand);
-  list.innerHTML = rows.map(c =>
-    `<option value="${escapeHTML(c.name)}" label="${escapeHTML(c.type)} · ${escapeHTML(brandLabel(c.brand))}"></option>`
-  ).join("");
+  list.innerHTML = rows.map(c => {
+    const extra = c.source === "crm"
+      ? `CRM${c.phone ? ` · ${c.phone}` : ""}${c.interest ? ` · ${c.interest}` : ""}`
+      : `${c.type} · ${brandLabel(c.brand)}`;
+    return `<option value="${escapeHTML(c.name)}" label="${escapeHTML(extra)}"></option>`;
+  }).join("");
+}
+
+function findQuoteContactExact(name, brand) {
+  const key = normalizeAgencyName(name || "");
+  if (!key) return null;
+  return quoteContacts.find(c => c.brand === brand && normalizeAgencyName(c.name) === key) || null;
+}
+
+function applyQuoteCustomerSelection({ forceDestination = false } = {}) {
+  const brand = $("#quoteBrand")?.value || "pink";
+  const contact = findQuoteContactExact($("#quoteCustomer")?.value || "", brand);
+  if (!contact || contact.source !== "crm") {
+    $("#quoteCrmLeadId").value = "";
+    return;
+  }
+  $("#quoteCrmLeadId").value = contact.crmLeadId || "";
+  $("#quoteCustomerPhone").value = contact.phone || "";
+  if (contact.interest && (forceDestination || !$("#quoteDestination").value.trim())) $("#quoteDestination").value = contact.interest;
 }
 
 function filteredQuotes() {
@@ -228,7 +269,7 @@ function quoteCardHTML(q) {
   const best = quoteBestTotal(q);
   const creator = q.createdBy || SYSTEM_ACTOR;
   return `<article class="quote-card">
-    <div class="quote-card-top"><div><span class="quote-folio">${escapeHTML(q.folio)}</span><h4>${escapeHTML(q.destination)}</h4><p>${escapeHTML(q.customer || "Sin agencia / cliente")}</p></div>${brandChipHTML(q.brand, true)}</div>
+    <div class="quote-card-top"><div><span class="quote-folio">${escapeHTML(q.folio)}</span><h4>${escapeHTML(q.destination)}</h4><p>${escapeHTML(q.customer || "Sin agencia / cliente")}${q.customerPhone ? ` · ${escapeHTML(q.customerPhone)}` : ""}${q.crmLeadId ? " · CRM" : ""}</p></div>${brandChipHTML(q.brand, true)}</div>
     <div class="quote-card-meta"><span>${q.start ? dateFmt.format(parseDate(q.start)) : "—"} → ${q.end ? dateFmt.format(parseDate(q.end)) : "—"}</span><span>${q.options.length} ${q.options.length === 1 ? "opción" : "opciones"}</span></div>
     <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(quoteFinalTotal(q, o.total))}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
     <div class="quote-card-bottom"><div><span class="status-chip ${quoteStatusClass(q.status)}">${quoteStatusLabel(q.status)}</span>${best ? `<strong>Desde ${quoteMoney.format(best)}</strong>` : ""}</div><small>Creó ${escapeHTML(creator.name)} · ${quoteDateTime.format(new Date(q.createdAt))}</small></div>
@@ -263,7 +304,9 @@ function openQuoteModal(id = "") {
   $("#quoteModalTitle").textContent = q ? "Editar cotización" : "Nueva cotización";
   $("#quoteBrand").value = q?.brand || (state.brand === "velora" ? "velora" : "pink");
   renderQuoteCustomerList();
+  $("#quoteCrmLeadId").value = q?.crmLeadId || "";
   $("#quoteCustomer").value = q?.customer || "";
+  $("#quoteCustomerPhone").value = q?.customerPhone || "";
   $("#quoteDestination").value = q?.destination || "";
   $("#quoteStart").value = q?.start || "";
   $("#quoteEnd").value = q?.end || "";
@@ -305,7 +348,9 @@ async function saveQuoteFromForm(e) {
     id: id || uid("quote"),
     folio: old?.folio || await nextQuoteFolio(brand),
     brand,
+    crmLeadId: $("#quoteCrmLeadId").value || "",
     customer: $("#quoteCustomer").value.trim(),
+    customerPhone: $("#quoteCustomerPhone").value.trim(),
     destination: $("#quoteDestination").value.trim(),
     start, end,
     passengers: $("#quotePassengers").value.trim(),
@@ -325,7 +370,7 @@ async function saveQuoteFromForm(e) {
 
   if (quotesSupabase) {
     const payload = {
-      id: quote.id, folio: quote.folio, brand: quote.brand, customer_name: quote.customer, destination: quote.destination,
+      id: quote.id, folio: quote.folio, brand: quote.brand, crm_lead_id: quote.crmLeadId || null, customer_name: quote.customer, customer_phone: quote.customerPhone || null, destination: quote.destination,
       start_date: quote.start, end_date: quote.end, passengers_text: quote.passengers, rooms_text: quote.rooms,
       deposit_percent: quote.depositPercent, liquidation_date: quote.liquidationDate || null, commission_percent: quote.commissionPercent,
       status: quote.status, include_items: quote.includes, extra_conditions: quote.extraConditions,
@@ -346,9 +391,21 @@ async function saveQuoteFromForm(e) {
   }
   if (old) quotesStore.splice(quotesStore.indexOf(old), 1, quote); else quotesStore.unshift(quote);
   saveDemoQuotes();
-  await logAction("quote", quote.id, old ? "updated" : "created", { folio: quote.folio, customer: quote.customer, destination: quote.destination, brand: quote.brand });
+
+  if (quote.crmLeadId) {
+    const lead = (state.leads || []).find(l => String(l.id) === String(quote.crmLeadId));
+    if (lead && !["cotizando", "ganado", "perdido"].includes(lead.status)) {
+      lead.status = "cotizando";
+      if (state.supabase) await state.supabase.from("crm_leads").update({ status: "cotizando" }).eq("id", lead.id);
+      await logAction("crm_lead", lead.id, "moved_to_quote", { quote_id: quote.id, folio: quote.folio });
+    }
+  }
+
+  buildQuoteContactsFromState();
+  await logAction("quote", quote.id, old ? "updated" : "created", { folio: quote.folio, customer: quote.customer, destination: quote.destination, brand: quote.brand, crm_lead_id: quote.crmLeadId || null });
   $("#quoteModal").close();
   renderQuotes();
+  if (typeof renderCRM === "function") renderCRM();
 }
 
 async function duplicateQuote(id) {
@@ -356,7 +413,7 @@ async function duplicateQuote(id) {
   const actor = currentActor();
   const copy = normalizeQuote({ ...structuredClone(source), id: uid("quote"), folio: await nextQuoteFolio(source.brand), status: "borrador", createdBy: actor, updatedBy: actor, createdAt: nowISO(), updatedAt: nowISO(), options: source.options.map(o => ({ ...o, id: uid("qopt") })) });
   if (quotesSupabase) {
-    const { data, error } = await quotesSupabase.from(QUOTE_TABLE).insert({ id: copy.id, folio: copy.folio, brand: copy.brand, customer_name: copy.customer, destination: copy.destination, start_date: copy.start, end_date: copy.end, passengers_text: copy.passengers, rooms_text: copy.rooms, deposit_percent: copy.depositPercent, liquidation_date: copy.liquidationDate || null, commission_percent: copy.commissionPercent, status: copy.status, include_items: copy.includes, extra_conditions: copy.extraConditions, created_by: actor.id, updated_by: actor.id }).select().single();
+    const { data, error } = await quotesSupabase.from(QUOTE_TABLE).insert({ id: copy.id, folio: copy.folio, brand: copy.brand, crm_lead_id: copy.crmLeadId || null, customer_name: copy.customer, customer_phone: copy.customerPhone || null, destination: copy.destination, start_date: copy.start, end_date: copy.end, passengers_text: copy.passengers, rooms_text: copy.rooms, deposit_percent: copy.depositPercent, liquidation_date: copy.liquidationDate || null, commission_percent: copy.commissionPercent, status: copy.status, include_items: copy.includes, extra_conditions: copy.extraConditions, created_by: actor.id, updated_by: actor.id }).select().single();
     if (error) { alert(error.message); return; }
     copy.id = data.id; copy.createdAt = data.created_at; copy.updatedAt = data.updated_at;
     const { data: opts, error: oe } = await quotesSupabase.from(QUOTE_OPTIONS_TABLE).insert(copy.options.map((o, i) => ({ quote_id: copy.id, sort_order: i, hotel: o.hotel, plan: o.plan, total_amount: o.total }))).select();
@@ -499,8 +556,18 @@ function bindQuoteModule() {
   $("#quoteForm")?.addEventListener("submit", saveQuoteFromForm);
   $("#addQuoteOptionBtn")?.addEventListener("click", () => { syncQuoteOptionDraft(); if (quoteOptionsDraft.length >= 3) return; quoteOptionsDraft.push(blankQuoteOption()); renderQuoteOptionsEditor(quoteOptionsDraft); });
   $("#quoteStart")?.addEventListener("change", () => { const start = $("#quoteStart").value; $("#quoteEnd").min = start || ""; if (start && (!$("#quoteEnd").value || $("#quoteEnd").value < start)) $("#quoteEnd").value = start; });
-  $("#quoteBrand")?.addEventListener("change", renderQuoteCustomerList);
+  $("#quoteBrand")?.addEventListener("change", () => {
+    $("#quoteCrmLeadId").value = "";
+    $("#quoteCustomerPhone").value = "";
+    renderQuoteCustomerList();
+  });
   $("#quoteCustomer")?.addEventListener("focus", renderQuoteCustomerList);
+  $("#quoteCustomer")?.addEventListener("change", () => applyQuoteCustomerSelection());
+  $("#quoteCustomer")?.addEventListener("input", () => {
+    const contact = findQuoteContactExact($("#quoteCustomer").value, $("#quoteBrand").value);
+    if (contact?.source === "crm") applyQuoteCustomerSelection();
+    else $("#quoteCrmLeadId").value = "";
+  });
   $("#brandFilter")?.addEventListener("change", () => setTimeout(renderQuotes, 0));
   $$('.brand-switch').forEach(btn => btn.addEventListener("click", () => setTimeout(renderQuotes, 0)));
   const quoteNav = $('.nav-item[data-view="quotes"]');
@@ -508,6 +575,21 @@ function bindQuoteModule() {
   $("#demoAccess")?.addEventListener("click", () => setTimeout(() => { loadDemoQuotes(); renderQuotes(); }, 0));
   window.addEventListener("focus", () => { if ($("#quotesView")?.classList.contains("active")) hydrateQuotes(); });
 }
+
+window.openQuoteFromCRMLead = function (leadId) {
+  const lead = (state.leads || []).find(l => String(l.id) === String(leadId));
+  if (!lead) { alert("No encontré ese prospecto en el CRM."); return; }
+  buildQuoteContactsFromState();
+  switchView("quotes");
+  openQuoteModal();
+  $("#quoteBrand").value = lead.brand || "pink";
+  renderQuoteCustomerList();
+  $("#quoteCrmLeadId").value = lead.id || "";
+  $("#quoteCustomer").value = lead.name || "";
+  $("#quoteCustomerPhone").value = lead.phone || "";
+  $("#quoteDestination").value = lead.interest || "";
+  $("#quoteModalTitle").textContent = "Cotización desde CRM";
+};
 
 const quotePublicParams = new URLSearchParams(location.search);
 const publicQuoteId = quotePublicParams.get("quote");

@@ -402,7 +402,11 @@ function renderDepartureCards() {
 }
 function renderCRM() {
   const statuses = [["nuevo", "Nuevo"], ["contactado", "Contactado"], ["cotizando", "Cotizando"], ["seguimiento", "Seguimiento"], ["ganado", "Ganado"], ["perdido", "Perdido"]]; const leads = filteredLeads();
-  $("#crmPipeline").innerHTML = statuses.map(([key, label]) => `<section class="pipeline-col"><h4>${label} · ${leads.filter(l => l.status === key).length}</h4>${leads.filter(l => l.status === key).map(l => `<article class="lead-card"><strong>${escapeHTML(l.name)}</strong><small>${escapeHTML(l.interest || "Sin interés")} · ${brandLabel(l.brand)}</small><small>${l.followup ? `Seguimiento: ${dateFmt.format(parseDate(l.followup))}` : "Sin fecha"}</small>${actorHTML({ id: l.owner_id, name: l.owner_name, avatar: l.owner_avatar }, true)}</article>`).join("") || `<div class="empty">Sin prospectos</div>`}</section>`).join("");
+  $("#crmPipeline").innerHTML = statuses.map(([key, label]) => `<section class="pipeline-col"><h4>${label} · ${leads.filter(l => l.status === key).length}</h4>${leads.filter(l => l.status === key).map(l => `<article class="lead-card"><strong>${escapeHTML(l.name)}</strong><small>${escapeHTML(l.interest || "Sin interés")} · ${brandLabel(l.brand)}</small><small>${l.phone ? `WhatsApp: ${escapeHTML(l.phone)}` : "Sin WhatsApp"}</small><small>${l.followup ? `Seguimiento: ${dateFmt.format(parseDate(l.followup))}` : "Sin fecha"}</small>${actorHTML({ id: l.owner_id, name: l.owner_name, avatar: l.owner_avatar }, true)}<div class="row-actions"><button class="small-btn" type="button" data-quote-lead="${l.id}">Cotizar</button></div></article>`).join("") || `<div class="empty">Sin prospectos</div>`}</section>`).join("");
+  $$('[data-quote-lead]', $("#crmPipeline")).forEach(btn => btn.addEventListener("click", () => {
+    if (typeof window.openQuoteFromCRMLead === "function") window.openQuoteFromCRMLead(btn.dataset.quoteLead);
+    else alert("El módulo de cotizaciones todavía no está disponible.");
+  }));
 }
 function renderAgencyFilterVisibility() {
   const mode = $("#agencyPeriodMode").value;
