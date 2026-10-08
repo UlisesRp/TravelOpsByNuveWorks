@@ -1,5 +1,5 @@
 // =========================================================
-// Travel Ops v1.11 - CRM conectado con Cotizaciones
+// Travel Ops v1.12 - Cotizaciones con hasta 5 opciones
 // Pink Sky Travel + Velora Travel
 // =========================================================
 
@@ -8,6 +8,7 @@ const QUOTE_TABLE = "travelops_quotes";
 const QUOTE_OPTIONS_TABLE = "travelops_quote_options";
 const QUOTE_FOLIO_RPC = "next_travelops_v19_quote_folio";
 const QUOTE_SHARE_RPC = "get_shared_travelops_quote";
+const MAX_QUOTE_OPTIONS = 5;
 let quotesSupabase = null;
 let quotesStore = [];
 let quoteOptionsDraft = [];
@@ -279,9 +280,9 @@ function quoteCardHTML(q) {
 
 function blankQuoteOption() { return { id: uid("qopt"), hotel: "", plan: "", total: 0 }; }
 function renderQuoteOptionsEditor(options = quoteOptionsDraft) {
-  quoteOptionsDraft = (options.length ? options : [blankQuoteOption()]).slice(0, 3).map(o => ({ ...blankQuoteOption(), ...o }));
+  quoteOptionsDraft = (options.length ? options : [blankQuoteOption()]).slice(0, MAX_QUOTE_OPTIONS).map(o => ({ ...blankQuoteOption(), ...o }));
   $("#quoteOptionsEditor").innerHTML = quoteOptionsDraft.map((o, i) => `<article class="quote-option-editor" data-option-id="${escapeHTML(o.id)}"><div class="quote-option-title"><strong>Opción ${i + 1}</strong>${i ? `<button class="mini-remove" type="button" data-remove-qopt="${escapeHTML(o.id)}">×</button>` : ""}</div><div class="quote-option-fields"><label><span>Hotel</span><input data-qopt="hotel" value="${escapeHTML(o.hotel)}" placeholder="Ej. Royal Villas" required /></label><label><span>Plan</span><input data-qopt="plan" value="${escapeHTML(o.plan)}" placeholder="Ej. Todo incluido" required /></label><label><span>Total base</span><input data-qopt="total" type="number" min="0.01" step="0.01" value="${o.total || ""}" placeholder="0.00" required /><small class="quote-option-help">Se agregará la comisión al precio final.</small></label></div></article>`).join("");
-  $("#addQuoteOptionBtn").disabled = quoteOptionsDraft.length >= 3;
+  $("#addQuoteOptionBtn").disabled = quoteOptionsDraft.length >= MAX_QUOTE_OPTIONS;
   $$('[data-remove-qopt]', $("#quoteOptionsEditor")).forEach(btn => btn.addEventListener("click", () => {
     syncQuoteOptionDraft();
     quoteOptionsDraft = quoteOptionsDraft.filter(o => o.id !== btn.dataset.removeQopt);
@@ -554,7 +555,7 @@ function bindQuoteModule() {
   $("#quoteSearch")?.addEventListener("input", renderQuotes);
   $("#quoteStatusFilter")?.addEventListener("change", renderQuotes);
   $("#quoteForm")?.addEventListener("submit", saveQuoteFromForm);
-  $("#addQuoteOptionBtn")?.addEventListener("click", () => { syncQuoteOptionDraft(); if (quoteOptionsDraft.length >= 3) return; quoteOptionsDraft.push(blankQuoteOption()); renderQuoteOptionsEditor(quoteOptionsDraft); });
+  $("#addQuoteOptionBtn")?.addEventListener("click", () => { syncQuoteOptionDraft(); if (quoteOptionsDraft.length >= MAX_QUOTE_OPTIONS) return; quoteOptionsDraft.push(blankQuoteOption()); renderQuoteOptionsEditor(quoteOptionsDraft); });
   $("#quoteStart")?.addEventListener("change", () => { const start = $("#quoteStart").value; $("#quoteEnd").min = start || ""; if (start && (!$("#quoteEnd").value || $("#quoteEnd").value < start)) $("#quoteEnd").value = start; });
   $("#quoteBrand")?.addEventListener("change", () => {
     $("#quoteCrmLeadId").value = "";
