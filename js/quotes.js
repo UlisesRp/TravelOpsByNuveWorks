@@ -1,13 +1,14 @@
 // =========================================================
-// Travel Ops v1.12 - Cotizaciones con hasta 5 opciones
+// Travel Ops v2.0 - Cotizaciones manuales + vuelos
 // Pink Sky Travel + Velora Travel
 // =========================================================
 
 const QUOTES_DEMO_KEY = "travelops_demo_quotes_v19";
 const QUOTE_TABLE = "travelops_quotes";
 const QUOTE_OPTIONS_TABLE = "travelops_quote_options";
+const QUOTE_FLIGHTS_TABLE = "travelops_quote_flights";
 const QUOTE_FOLIO_RPC = "next_travelops_v19_quote_folio";
-const QUOTE_SHARE_RPC = "get_shared_travelops_quote";
+const QUOTE_SHARE_RPC = "get_shared_travelops_quote_v2";
 const MAX_QUOTE_OPTIONS = 5;
 let quotesSupabase = null;
 let quotesStore = [];
@@ -44,15 +45,11 @@ function quoteRoomCount(text = "") {
   const m = String(text).match(/\b(\d+)\b/);
   return m ? Number(m[1]) : 0;
 }
-function quoteFinalTotal(q, baseTotal) {
-  const base = Number(baseTotal || 0);
-  const commission = Number(q?.commissionPercent || 0);
-  return base * (1 + commission / 100);
-}
 function quoteBestTotal(q) {
-  const vals = (q.options || []).map(o => quoteFinalTotal(q, o.total)).filter(n => n > 0);
+  const vals = (q.options || []).map(o => Number(o.total || 0)).filter(n => n > 0);
   return vals.length ? Math.min(...vals) : 0;
 }
+
 function quoteDateRangeUpper(q) {
   if (!q.start || !q.end) return "";
   return `${quoteDateLong.format(parseDate(q.start)).toUpperCase()} — ${quoteDateLong.format(parseDate(q.end)).toUpperCase()}`;
@@ -82,9 +79,8 @@ function normalizeQuote(q) {
     end: q.end || q.end_date || "",
     passengers: q.passengers || q.passengers_text || "",
     rooms: q.rooms || q.rooms_text || "",
-    depositPercent: Number(q.depositPercent ?? q.deposit_percent ?? 30),
     liquidationDate: q.liquidationDate || q.liquidation_date || "",
-    commissionPercent: Number(q.commissionPercent ?? q.commission_percent ?? 15),
+    declaredCommissionPercent: Number(q.declaredCommissionPercent ?? q.declared_commission_percent ?? 0),
     status: q.status || "borrador",
     includes: quoteArray(q.includes || q.include_items),
     extraConditions: quoteArray(q.extraConditions || q.extra_conditions),
@@ -95,7 +91,27 @@ function normalizeQuote(q) {
     shareToken: q.shareToken || q.share_token || "",
     shareEnabled: Boolean(q.shareEnabled ?? q.share_enabled ?? false),
     sharedAt: q.sharedAt || q.shared_at || "",
-    options: Array.isArray(q.options) ? q.options.map((o, i) => ({ id: o.id || uid("qopt"), hotel: o.hotel || "", plan: o.plan || "", total: Number(o.total ?? o.total_amount ?? 0), sortOrder: Number(o.sortOrder ?? o.sort_order ?? i) })) : []
+    flights: Array.isArray(q.flights) ? q.flights.map((f, i) => ({
+      id: f.id || uid("qflight"),
+      route: f.route || "",
+      departureText: f.departureText || f.departure_text || "",
+      departureAt: f.departureAt || f.departure_at || "",
+      returnText: f.returnText || f.return_text || "",
+      returnAt: f.returnAt || f.return_at || "",
+      amount: Number(f.amount ?? f.display_amount ?? 0),
+      baggage: f.baggage || "",
+      notes: f.notes || "",
+      sortOrder: Number(f.sortOrder ?? f.sort_order ?? i)
+    })) : [],
+    options: Array.isArray(q.options) ? q.options.map((o, i) => ({
+      id: o.id || uid("qopt"),
+      hotel: o.hotel || "",
+      plan: o.plan || "",
+      total: Number(o.total ?? o.display_total_amount ?? o.total_amount ?? 0),
+      deposit: Number(o.deposit ?? o.deposit_amount ?? 0),
+      balance: Number(o.balance ?? o.balance_amount ?? 0),
+      sortOrder: Number(o.sortOrder ?? o.sort_order ?? i)
+    })) : []
   };
 }
 
@@ -114,6 +130,7 @@ async function hydrateQuotes() {
     { data: profiles },
     { data: quotes, error: qe },
     { data: opts, error: oe },
+    { data: flights, error: fe },
     { data: agencies, error: ae },
     { data: bookings, error: be },
     { data: departures, error: de },
@@ -122,14 +139,15 @@ async function hydrateQuotes() {
     quotesSupabase.from("profiles").select("id,full_name,avatar_data_url"),
     quotesSupabase.from(QUOTE_TABLE).select("*").order("created_at", { ascending: false }),
     quotesSupabase.from(QUOTE_OPTIONS_TABLE).select("*").order("sort_order", { ascending: true }),
+    quotesSupabase.from(QUOTE_FLIGHTS_TABLE).select("*").order("sort_order", { ascending: true }),
     quotesSupabase.from("agencies").select("id,name").order("name"),
     quotesSupabase.from("bookings").select("id,departure_id,customer_name,agency_id"),
     quotesSupabase.from("departures").select("id,brand"),
     quotesSupabase.from("crm_leads").select("id,name,phone,brand,interest,status,notes").order("created_at", { ascending: false })
   ]);
 
-  if (qe || oe) {
-    console.warn("Travel Ops cotizaciones:", qe || oe);
+  if (qe || oe || fe) {
+    console.warn("Travel Ops cotizaciones:", qe || oe || fe);
     $("#quoteCards").innerHTML = `<div class="empty">No se pudieron cargar las cotizaciones. Ejecuta <strong>migration_v1_9_1_quotes_fix.sql</strong> en Supabase.</div>`;
     return;
   }
@@ -143,7 +161,11 @@ async function hydrateQuotes() {
   }]));
 
   quotesStore = (quotes || []).map(row =>
-    normalizeQuote({ ...row, options: (opts || []).filter(o => o.quote_id === row.id) })
+    normalizeQuote({
+      ...row,
+      options: (opts || []).filter(o => o.quote_id === row.id),
+      flights: (flights || []).filter(f => f.quote_id === row.id)
+    })
   );
 
   buildQuoteContacts(agencies || [], bookings || [], departures || [], crmLeads || []);
@@ -272,16 +294,53 @@ function quoteCardHTML(q) {
   return `<article class="quote-card">
     <div class="quote-card-top"><div><span class="quote-folio">${escapeHTML(q.folio)}</span><h4>${escapeHTML(q.destination)}</h4><p>${escapeHTML(q.customer || "Sin agencia / cliente")}${q.customerPhone ? ` · ${escapeHTML(q.customerPhone)}` : ""}${q.crmLeadId ? " · CRM" : ""}</p></div>${brandChipHTML(q.brand, true)}</div>
     <div class="quote-card-meta"><span>${q.start ? dateFmt.format(parseDate(q.start)) : "—"} → ${q.end ? dateFmt.format(parseDate(q.end)) : "—"}</span><span>${q.options.length} ${q.options.length === 1 ? "opción" : "opciones"}</span></div>
-    <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(quoteFinalTotal(q, o.total))}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
+    <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(o.total)}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
     <div class="quote-card-bottom"><div><span class="status-chip ${quoteStatusClass(q.status)}">${quoteStatusLabel(q.status)}</span>${best ? `<strong>Desde ${quoteMoney.format(best)}</strong>` : ""}</div><small>Creó ${escapeHTML(creator.name)} · ${quoteDateTime.format(new Date(q.createdAt))}</small></div>
     <div class="quote-card-actions"><button class="small-btn" data-quote-share="${q.id}">Enviar al cliente</button><button class="small-btn" data-quote-print="${q.id}">Imprimir / PDF</button><button class="small-btn" data-quote-edit="${q.id}">Editar</button><button class="small-btn" data-quote-duplicate="${q.id}">Duplicar</button><button class="small-btn danger" data-quote-delete="${q.id}">Borrar</button></div>
   </article>`;
 }
 
-function blankQuoteOption() { return { id: uid("qopt"), hotel: "", plan: "", total: 0 }; }
+function blankQuoteOption() {
+  return { id: uid("qopt"), hotel: "", plan: "", total: 0, deposit: 0, balance: 0 };
+}
+
+function quoteFlightFromForm() {
+  const flight = {
+    id: uid("qflight"),
+    route: $("#quoteFlightRoute")?.value.trim() || "",
+    departureText: $("#quoteFlightDepartureText")?.value.trim() || "",
+    departureAt: $("#quoteFlightDepartureAt")?.value || "",
+    returnText: $("#quoteFlightReturnText")?.value.trim() || "",
+    returnAt: $("#quoteFlightReturnAt")?.value || "",
+    amount: Number($("#quoteFlightAmount")?.value || 0),
+    baggage: $("#quoteFlightBaggage")?.value.trim() || "",
+    notes: $("#quoteFlightNotes")?.value.trim() || "",
+    sortOrder: 0
+  };
+  const hasData = flight.route || flight.departureText || flight.departureAt || flight.returnText || flight.returnAt || flight.amount > 0 || flight.baggage || flight.notes;
+  return hasData ? [flight] : [];
+}
+
+function quoteDateTimeLocalValue(value) {
+  if (!value) return "";
+  return String(value).replace(" ", "T").slice(0, 16);
+}
+function refreshQuotePricingPreview() {
+  // Cotizaciones v2 manuales: no se realizan cálculos automáticos.
+}
+
 function renderQuoteOptionsEditor(options = quoteOptionsDraft) {
   quoteOptionsDraft = (options.length ? options : [blankQuoteOption()]).slice(0, MAX_QUOTE_OPTIONS).map(o => ({ ...blankQuoteOption(), ...o }));
-  $("#quoteOptionsEditor").innerHTML = quoteOptionsDraft.map((o, i) => `<article class="quote-option-editor" data-option-id="${escapeHTML(o.id)}"><div class="quote-option-title"><strong>Opción ${i + 1}</strong>${i ? `<button class="mini-remove" type="button" data-remove-qopt="${escapeHTML(o.id)}">×</button>` : ""}</div><div class="quote-option-fields"><label><span>Hotel</span><input data-qopt="hotel" value="${escapeHTML(o.hotel)}" placeholder="Ej. Royal Villas" required /></label><label><span>Plan</span><input data-qopt="plan" value="${escapeHTML(o.plan)}" placeholder="Ej. Todo incluido" required /></label><label><span>Total base</span><input data-qopt="total" type="number" min="0.01" step="0.01" value="${o.total || ""}" placeholder="0.00" required /><small class="quote-option-help">Se agregará la comisión al precio final.</small></label></div></article>`).join("");
+  $("#quoteOptionsEditor").innerHTML = quoteOptionsDraft.map((o, i) => `<article class="quote-option-editor" data-option-id="${escapeHTML(o.id)}">
+    <div class="quote-option-title"><strong>Opción ${i + 1}</strong>${i ? `<button class="mini-remove" type="button" data-remove-qopt="${escapeHTML(o.id)}">×</button>` : ""}</div>
+    <div class="quote-option-fields">
+      <label><span>Hotel</span><input data-qopt="hotel" value="${escapeHTML(o.hotel)}" placeholder="Ej. Royal Villas" required /></label>
+      <label><span>Plan</span><input data-qopt="plan" value="${escapeHTML(o.plan)}" placeholder="Ej. Todo incluido" required /></label>
+      <label><span>Total final</span><input data-qopt="total" type="number" min="0.01" step="0.01" value="${o.total || ""}" placeholder="0.00" required /></label>
+      <label><span>Apartado</span><input data-qopt="deposit" type="number" min="0" step="0.01" value="${o.deposit || ""}" placeholder="0.00" /></label>
+      <label><span>Saldo</span><input data-qopt="balance" type="number" min="0" step="0.01" value="${o.balance || ""}" placeholder="0.00" /></label>
+    </div>
+  </article>`).join("");
   $("#addQuoteOptionBtn").disabled = quoteOptionsDraft.length >= MAX_QUOTE_OPTIONS;
   $$('[data-remove-qopt]', $("#quoteOptionsEditor")).forEach(btn => btn.addEventListener("click", () => {
     syncQuoteOptionDraft();
@@ -289,15 +348,19 @@ function renderQuoteOptionsEditor(options = quoteOptionsDraft) {
     renderQuoteOptionsEditor(quoteOptionsDraft);
   }));
 }
+
 function syncQuoteOptionDraft() {
   quoteOptionsDraft = $$(".quote-option-editor", $("#quoteOptionsEditor")).map(card => ({
     id: card.dataset.optionId || uid("qopt"),
     hotel: card.querySelector('[data-qopt="hotel"]').value.trim(),
     plan: card.querySelector('[data-qopt="plan"]').value.trim(),
-    total: Number(card.querySelector('[data-qopt="total"]').value || 0)
+    total: Number(card.querySelector('[data-qopt="total"]').value || 0),
+    deposit: Number(card.querySelector('[data-qopt="deposit"]').value || 0),
+    balance: Number(card.querySelector('[data-qopt="balance"]').value || 0)
   }));
   return quoteOptionsDraft;
 }
+
 function openQuoteModal(id = "") {
   const q = id ? quotesStore.find(x => x.id === id) : null;
   $("#quoteForm").reset();
@@ -313,10 +376,18 @@ function openQuoteModal(id = "") {
   $("#quoteEnd").value = q?.end || "";
   $("#quotePassengers").value = q?.passengers || "";
   $("#quoteRooms").value = q?.rooms || "";
-  $("#quoteDepositPercent").value = q?.depositPercent ?? 30;
   $("#quoteLiquidationDate").value = q?.liquidationDate || "";
-  $("#quoteCommissionPercent").value = q?.commissionPercent ?? 15;
+  $("#quoteDeclaredCommissionPercent").value = q?.declaredCommissionPercent ?? 0;
   $("#quoteStatus").value = q?.status || "borrador";
+  const flight = q?.flights?.[0] || {};
+  $("#quoteFlightRoute").value = flight.route || "";
+  $("#quoteFlightDepartureText").value = flight.departureText || "";
+  $("#quoteFlightDepartureAt").value = quoteDateTimeLocalValue(flight.departureAt);
+  $("#quoteFlightReturnText").value = flight.returnText || "";
+  $("#quoteFlightReturnAt").value = quoteDateTimeLocalValue(flight.returnAt);
+  $("#quoteFlightAmount").value = Number(flight.amount || 0) || "";
+  $("#quoteFlightBaggage").value = flight.baggage || "";
+  $("#quoteFlightNotes").value = flight.notes || "";
   $("#quoteIncludes").value = (q?.includes || ["Hospedaje durante la estancia indicada."]).join("\n");
   $("#quoteExtraConditions").value = (q?.extraConditions || []).join("\n");
   renderQuoteOptionsEditor(q?.options?.length ? q.options : [blankQuoteOption()]);
@@ -338,7 +409,10 @@ async function nextQuoteFolio(brand) {
 async function saveQuoteFromForm(e) {
   e.preventDefault();
   syncQuoteOptionDraft();
-  if (!quoteOptionsDraft.length || quoteOptionsDraft.some(o => !o.hotel || !o.plan || o.total <= 0)) { alert("Completa hotel, plan y total de cada opción."); return; }
+  if (!quoteOptionsDraft.length || quoteOptionsDraft.some(o => !o.hotel || !o.plan || o.total <= 0)) {
+    alert("Completa hotel, plan y total final de cada opción.");
+    return;
+  }
   const start = $("#quoteStart").value, end = $("#quoteEnd").value;
   if (end < start) { alert("La fecha de regreso no puede ser anterior a la salida."); return; }
   const id = $("#quoteId").value;
@@ -356,13 +430,13 @@ async function saveQuoteFromForm(e) {
     start, end,
     passengers: $("#quotePassengers").value.trim(),
     rooms: $("#quoteRooms").value.trim(),
-    depositPercent: Number($("#quoteDepositPercent").value || 0),
     liquidationDate: $("#quoteLiquidationDate").value,
-    commissionPercent: Number($("#quoteCommissionPercent").value || 0),
+    declaredCommissionPercent: Number($("#quoteDeclaredCommissionPercent").value || 0),
     status: $("#quoteStatus").value,
     includes: quoteLines($("#quoteIncludes").value),
     extraConditions: quoteLines($("#quoteExtraConditions").value),
     options: quoteOptionsDraft,
+    flights: quoteFlightFromForm(),
     createdBy: old?.createdBy || actor,
     updatedBy: actor,
     createdAt: old?.createdAt || nowISO(),
@@ -371,25 +445,75 @@ async function saveQuoteFromForm(e) {
 
   if (quotesSupabase) {
     const payload = {
-      id: quote.id, folio: quote.folio, brand: quote.brand, crm_lead_id: quote.crmLeadId || null, customer_name: quote.customer, customer_phone: quote.customerPhone || null, destination: quote.destination,
+      id: quote.id, folio: quote.folio, brand: quote.brand, crm_lead_id: quote.crmLeadId || null,
+      customer_name: quote.customer, customer_phone: quote.customerPhone || null, destination: quote.destination,
       start_date: quote.start, end_date: quote.end, passengers_text: quote.passengers, rooms_text: quote.rooms,
-      deposit_percent: quote.depositPercent, liquidation_date: quote.liquidationDate || null, commission_percent: quote.commissionPercent,
+      deposit_percent: 0, liquidation_date: quote.liquidationDate || null,
+      internal_markup_percent: 0,
+      declared_commission_percent: quote.declaredCommissionPercent,
+      commission_percent: 0,
       status: quote.status, include_items: quote.includes, extra_conditions: quote.extraConditions,
       created_by: old?.createdBy?.id || actor.id, updated_by: actor.id
     };
     const { data: saved, error } = await quotesSupabase.from(QUOTE_TABLE).upsert(payload, { onConflict: "id" }).select().single();
     if (error) { alert(error.message); return; }
-    quote.id = saved.id; quote.createdAt = saved.created_at || quote.createdAt; quote.updatedAt = saved.updated_at || quote.updatedAt;
+    quote.id = saved.id;
+    quote.createdAt = saved.created_at || quote.createdAt;
+    quote.updatedAt = saved.updated_at || quote.updatedAt;
     quote.shareToken = saved.share_token || quote.shareToken || "";
     quote.shareEnabled = Boolean(saved.share_enabled ?? quote.shareEnabled);
     quote.sharedAt = saved.shared_at || quote.sharedAt || "";
+
     const { error: delErr } = await quotesSupabase.from(QUOTE_OPTIONS_TABLE).delete().eq("quote_id", quote.id);
     if (delErr) { alert(delErr.message); return; }
-    const rows = quote.options.map((o, i) => ({ quote_id: quote.id, sort_order: i, hotel: o.hotel, plan: o.plan, total_amount: o.total }));
+    const rows = quote.options.map((o, i) => ({
+      quote_id: quote.id,
+      sort_order: i,
+      hotel: o.hotel,
+      plan: o.plan,
+      total_amount: o.total,
+      display_total_amount: o.total,
+      deposit_amount: o.deposit,
+      balance_amount: o.balance
+    }));
     const { data: savedOpts, error: optErr } = await quotesSupabase.from(QUOTE_OPTIONS_TABLE).insert(rows).select();
     if (optErr) { alert(optErr.message); return; }
-    quote.options = (savedOpts || []).map(o => ({ id: o.id, hotel: o.hotel, plan: o.plan, total: Number(o.total_amount || 0), sortOrder: o.sort_order }));
+    quote.options = (savedOpts || []).map(o => ({
+      id: o.id, hotel: o.hotel, plan: o.plan,
+      total: Number(o.display_total_amount ?? o.total_amount ?? 0),
+      deposit: Number(o.deposit_amount || 0),
+      balance: Number(o.balance_amount || 0),
+      sortOrder: o.sort_order
+    }));
+
+    const { error: delFlightErr } = await quotesSupabase.from(QUOTE_FLIGHTS_TABLE).delete().eq("quote_id", quote.id);
+    if (delFlightErr) { alert(delFlightErr.message); return; }
+    if (quote.flights.length) {
+      const flightRows = quote.flights.map((f, i) => ({
+        quote_id: quote.id,
+        sort_order: i,
+        route: f.route || null,
+        departure_text: f.departureText || null,
+        departure_at: f.departureAt || null,
+        return_text: f.returnText || null,
+        return_at: f.returnAt || null,
+        cost_amount: 0,
+        display_amount: Number(f.amount || 0),
+        baggage: f.baggage || null,
+        notes: f.notes || null,
+        created_by: actor.id,
+        updated_by: actor.id
+      }));
+      const { data: savedFlights, error: flightErr } = await quotesSupabase.from(QUOTE_FLIGHTS_TABLE).insert(flightRows).select();
+      if (flightErr) { alert(flightErr.message); return; }
+      quote.flights = (savedFlights || []).map(f => ({
+        id: f.id, route: f.route || "", departureText: f.departure_text || "", departureAt: f.departure_at || "",
+        returnText: f.return_text || "", returnAt: f.return_at || "", amount: Number(f.display_amount || 0),
+        baggage: f.baggage || "", notes: f.notes || "", sortOrder: Number(f.sort_order || 0)
+      }));
+    }
   }
+
   if (old) quotesStore.splice(quotesStore.indexOf(old), 1, quote); else quotesStore.unshift(quote);
   saveDemoQuotes();
 
@@ -403,7 +527,10 @@ async function saveQuoteFromForm(e) {
   }
 
   buildQuoteContactsFromState();
-  await logAction("quote", quote.id, old ? "updated" : "created", { folio: quote.folio, customer: quote.customer, destination: quote.destination, brand: quote.brand, crm_lead_id: quote.crmLeadId || null });
+  await logAction("quote", quote.id, old ? "updated" : "created", {
+    folio: quote.folio, customer: quote.customer, destination: quote.destination,
+    brand: quote.brand, crm_lead_id: quote.crmLeadId || null
+  });
   $("#quoteModal").close();
   renderQuotes();
   if (typeof renderCRM === "function") renderCRM();
@@ -412,18 +539,78 @@ async function saveQuoteFromForm(e) {
 async function duplicateQuote(id) {
   const source = quotesStore.find(q => q.id === id); if (!source) return;
   const actor = currentActor();
-  const copy = normalizeQuote({ ...structuredClone(source), id: uid("quote"), folio: await nextQuoteFolio(source.brand), status: "borrador", createdBy: actor, updatedBy: actor, createdAt: nowISO(), updatedAt: nowISO(), options: source.options.map(o => ({ ...o, id: uid("qopt") })) });
+  const copy = normalizeQuote({
+    ...structuredClone(source),
+    id: uid("quote"),
+    folio: await nextQuoteFolio(source.brand),
+    status: "borrador",
+    shareToken: "",
+    shareEnabled: false,
+    sharedAt: "",
+    createdBy: actor,
+    updatedBy: actor,
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+    options: source.options.map(o => ({ ...o, id: uid("qopt") })),
+    flights: (source.flights || []).map(f => ({ ...f, id: uid("qflight") }))
+  });
   if (quotesSupabase) {
-    const { data, error } = await quotesSupabase.from(QUOTE_TABLE).insert({ id: copy.id, folio: copy.folio, brand: copy.brand, crm_lead_id: copy.crmLeadId || null, customer_name: copy.customer, customer_phone: copy.customerPhone || null, destination: copy.destination, start_date: copy.start, end_date: copy.end, passengers_text: copy.passengers, rooms_text: copy.rooms, deposit_percent: copy.depositPercent, liquidation_date: copy.liquidationDate || null, commission_percent: copy.commissionPercent, status: copy.status, include_items: copy.includes, extra_conditions: copy.extraConditions, created_by: actor.id, updated_by: actor.id }).select().single();
+    const { data, error } = await quotesSupabase.from(QUOTE_TABLE).insert({
+      id: copy.id, folio: copy.folio, brand: copy.brand, crm_lead_id: copy.crmLeadId || null,
+      customer_name: copy.customer, customer_phone: copy.customerPhone || null, destination: copy.destination,
+      start_date: copy.start, end_date: copy.end, passengers_text: copy.passengers, rooms_text: copy.rooms,
+      deposit_percent: 0, liquidation_date: copy.liquidationDate || null,
+      internal_markup_percent: 0, declared_commission_percent: copy.declaredCommissionPercent, commission_percent: 0,
+      status: copy.status, include_items: copy.includes, extra_conditions: copy.extraConditions,
+      created_by: actor.id, updated_by: actor.id
+    }).select().single();
     if (error) { alert(error.message); return; }
-    copy.id = data.id; copy.createdAt = data.created_at; copy.updatedAt = data.updated_at;
-    const { data: opts, error: oe } = await quotesSupabase.from(QUOTE_OPTIONS_TABLE).insert(copy.options.map((o, i) => ({ quote_id: copy.id, sort_order: i, hotel: o.hotel, plan: o.plan, total_amount: o.total }))).select();
+
+    copy.id = data.id;
+    copy.createdAt = data.created_at;
+    copy.updatedAt = data.updated_at;
+    copy.shareToken = data.share_token || "";
+    copy.shareEnabled = Boolean(data.share_enabled);
+    copy.sharedAt = data.shared_at || "";
+
+    const { data: opts, error: oe } = await quotesSupabase.from(QUOTE_OPTIONS_TABLE).insert(
+      copy.options.map((o, i) => ({
+        quote_id: copy.id, sort_order: i, hotel: o.hotel, plan: o.plan,
+        total_amount: o.total, display_total_amount: o.total,
+        deposit_amount: o.deposit, balance_amount: o.balance
+      }))
+    ).select();
     if (oe) { alert(oe.message); return; }
-    copy.options = opts.map(o => ({ id: o.id, hotel: o.hotel, plan: o.plan, total: Number(o.total_amount), sortOrder: o.sort_order }));
+    copy.options = (opts || []).map(o => ({
+      id: o.id, hotel: o.hotel, plan: o.plan,
+      total: Number(o.display_total_amount ?? o.total_amount ?? 0),
+      deposit: Number(o.deposit_amount || 0),
+      balance: Number(o.balance_amount || 0),
+      sortOrder: o.sort_order
+    }));
+
+    if (copy.flights.length) {
+      const { data: fl, error: fe } = await quotesSupabase.from(QUOTE_FLIGHTS_TABLE).insert(
+        copy.flights.map((f, i) => ({
+          quote_id: copy.id, sort_order: i, route: f.route || null, departure_text: f.departureText || null,
+          departure_at: f.departureAt || null, return_text: f.returnText || null, return_at: f.returnAt || null,
+          cost_amount: 0, display_amount: Number(f.amount || 0),
+          baggage: f.baggage || null, notes: f.notes || null,
+          created_by: actor.id, updated_by: actor.id
+        }))
+      ).select();
+      if (fe) { alert(fe.message); return; }
+      copy.flights = (fl || []).map(f => ({
+        id: f.id, route: f.route || "", departureText: f.departure_text || "", departureAt: f.departure_at || "",
+        returnText: f.return_text || "", returnAt: f.return_at || "", amount: Number(f.display_amount || 0),
+        baggage: f.baggage || "", notes: f.notes || "", sortOrder: Number(f.sort_order || 0)
+      }));
+    }
   }
   quotesStore.unshift(copy); saveDemoQuotes(); renderQuotes();
   await logAction("quote", copy.id, "duplicated", { from: source.folio, folio: copy.folio });
 }
+
 async function deleteQuote(id) {
   const q = quotesStore.find(x => x.id === id); if (!q || !confirm(`¿Borrar la cotización ${q.folio}?`)) return;
   if (quotesSupabase) { const { error } = await quotesSupabase.from(QUOTE_TABLE).delete().eq("id", id); if (error) { alert(error.message); return; } }
@@ -436,23 +623,46 @@ function quotePrintTheme(brand) {
 }
 function quoteDocumentHTML(q, { publicView = false } = {}) {
   const t = quotePrintTheme(q.brand), roomCount = quoteRoomCount(q.rooms), totalHead = roomCount ? `TOTAL ${roomCount} HAB.` : "TOTAL";
-  const depositLabel = `APARTADO ${Number(q.depositPercent || 0).toLocaleString("es-MX", { maximumFractionDigits: 2 })}%`;
   const logo = new URL(brandAsset(q.brand), location.href).href;
   const conditions = [
-    q.depositPercent > 0 ? `La reservación se aparta con el ${q.depositPercent}% del valor total de la opción seleccionada.` : "La reservación se confirma de acuerdo con las condiciones indicadas por la agencia.",
-    q.liquidationDate ? `Fecha límite para liquidar el hospedaje: ${quoteDateLong.format(parseDate(q.liquidationDate))}.` : "",
-    q.commissionPercent > 0 ? `Tarifas comisionables al ${q.commissionPercent}% para agencias de viajes.` : "",
+    q.liquidationDate ? `Fecha límite para liquidar: ${quoteDateLong.format(parseDate(q.liquidationDate))}.` : "",
+    q.declaredCommissionPercent > 0 ? `Comisión para agencia: ${q.declaredCommissionPercent}%.` : "",
     ...q.extraConditions
   ].filter(Boolean);
-  const optionsRows = q.options.map(o => { const finalTotal = quoteFinalTotal(q, o.total); const deposit = finalTotal * Number(q.depositPercent || 0) / 100; return `<tr><td><strong>${escapeHTML(o.hotel)}</strong></td><td>${escapeHTML(o.plan)}</td><td><strong>${quoteMoney.format(finalTotal)}</strong></td><td><strong>${quoteMoney.format(deposit)}</strong></td></tr>`; }).join("");
-  const summaryRows = q.options.map(o => { const finalTotal = quoteFinalTotal(q, o.total); const deposit = finalTotal * Number(q.depositPercent || 0) / 100; return `<tr><td><strong>${escapeHTML(o.hotel)}</strong></td><td><strong>${quoteMoney.format(finalTotal)}</strong></td><td><strong>${quoteMoney.format(deposit)}</strong></td><td>${quoteMoney.format(finalTotal - deposit)}</td></tr>`; }).join("");
+
+  const optionsRows = q.options.map(o => `<tr>
+    <td><strong>${escapeHTML(o.hotel)}</strong></td>
+    <td>${escapeHTML(o.plan)}</td>
+    <td><strong>${quoteMoney.format(o.total)}</strong></td>
+    <td><strong>${quoteMoney.format(o.deposit)}</strong></td>
+  </tr>`).join("");
+
+  const summaryRows = q.options.map(o => `<tr>
+    <td><strong>${escapeHTML(o.hotel)}</strong></td>
+    <td><strong>${quoteMoney.format(o.total)}</strong></td>
+    <td><strong>${quoteMoney.format(o.deposit)}</strong></td>
+    <td>${quoteMoney.format(o.balance)}</td>
+  </tr>`).join("");
+
+  const flightDate = value => value ? new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(value).replace(" ", "T"))) : "—";
+  const flightsHTML = (q.flights || []).length ? `<div class="section-title">VUELOS</div>${q.flights.map(f => `<table class="info flight-info">
+    <tr><th>Ruta</th><td>${escapeHTML(f.route || "—")}</td></tr>
+    <tr><th>Salida</th><td>${escapeHTML(f.departureText || "—")} · ${escapeHTML(flightDate(f.departureAt))}</td></tr>
+    <tr><th>Regreso</th><td>${escapeHTML(f.returnText || "—")} · ${escapeHTML(flightDate(f.returnAt))}</td></tr>
+    ${Number(f.amount || 0) > 0 ? `<tr><th>Precio / total</th><td><strong>${quoteMoney.format(f.amount)}</strong></td></tr>` : ""}
+    <tr><th>Equipaje</th><td>${escapeHTML(f.baggage || "—")}</td></tr>
+    ${f.notes ? `<tr><th>Notas</th><td>${escapeHTML(f.notes)}</td></tr>` : ""}
+  </table>`).join("")}` : "";
+
   const created = new Date(q.createdAt || nowISO());
   const brandFooter = q.brand === "pink" ? "PINK SKY TRAVEL · Mayorista de viajes" : "VELORA TRAVEL";
   const toolbar = publicView ? `<div class="client-toolbar"><span>Cotización ${escapeHTML(q.folio)}</span><button type="button" onclick="window.print()">Imprimir / Guardar PDF</button></div>` : "";
+
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(q.folio)} · Cotización</title><style>
     @page{size:A4;margin:11mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#241529;margin:0;background:${publicView ? "#f3f4f7" : "white"};font-size:11px}.client-toolbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 18px;background:#111827;color:#fff;font-size:12px}.client-toolbar button{border:0;border-radius:9px;background:#fff;color:#111827;font-weight:800;padding:9px 12px;cursor:pointer}.sheet{max-width:794px;margin:${publicView ? "24px auto" : "auto"};background:#fff;${publicView ? "padding:24px;box-shadow:0 16px 55px rgba(17,24,39,.12);border-radius:16px" : ""}}.logo-wrap{text-align:center;margin:2px 0 8px}.logo{width:118px;height:76px;object-fit:contain}.title{text-align:center;color:${t.primary};font-size:27px;font-weight:800;margin:0}.subtitle{text-align:center;color:${t.accent};font-size:12px;font-weight:800;margin:2px 0 14px;text-transform:uppercase}.info{width:100%;border-collapse:collapse;margin-bottom:10px}.info th{width:21%;background:${t.primary};color:white;text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase}.info td{background:${t.pale};padding:8px 10px;border:1px solid #dfd6df}.section-title{font-size:14px;color:${t.primary};font-weight:900;margin:12px 0 6px}.options,.summary{width:100%;border-collapse:collapse}.options th{background:${t.primary};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.options td,.summary td{background:${t.pale};padding:9px 10px;border:1px solid #dfd6df}.summary th{background:${t.accent};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.bullets{list-style:none;padding:0;margin:6px 0}.bullets li{margin:8px 0;line-height:1.45;padding-left:15px;position:relative}.bullets.check li:before{content:"✓";position:absolute;left:0;font-weight:900;color:${t.primary}}.bullets.dot li:before{content:"•";position:absolute;left:2px;color:${t.primary}}.footer{text-align:center;margin-top:18px;color:${t.primary};font-weight:900;font-size:11px}.footer-note{text-align:center;margin-top:10px;color:#796c7c;font-size:8.5px}.invalid-share{max-width:680px;margin:80px auto;background:#fff;border-radius:18px;padding:34px;text-align:center;box-shadow:0 16px 55px rgba(17,24,39,.12)}@media(max-width:820px){.sheet{margin:0;border-radius:0;box-shadow:none;padding:18px}.client-toolbar{position:static}.options,.summary{font-size:9px}.options th,.options td,.summary th,.summary td{padding:7px 5px}}@media print{body{background:#fff;font-size:10.5px}.client-toolbar{display:none!important}.sheet{max-width:none;margin:0;padding:0;box-shadow:none;border-radius:0}.title{font-size:24px}.section-title{margin-top:10px}.logo{height:66px}.options td,.summary td,.info td,.info th{padding:7px 9px}}
-  </style></head><body>${toolbar}<main class="sheet"><div class="logo-wrap"><img class="logo" src="${logo}" alt="${escapeHTML(brandLabel(q.brand))}"></div><h1 class="title">COTIZACIÓN</h1><div class="subtitle">${escapeHTML(q.destination.toUpperCase())} · ${escapeHTML(quoteDateRangeUpper(q))}</div><table class="info"><tr><th>Destino</th><td>${escapeHTML(q.destination)}</td></tr><tr><th>Estancia</th><td>${escapeHTML(quoteStayText(q))}</td></tr><tr><th>Pasajeros</th><td>${escapeHTML(q.passengers)}</td></tr><tr><th>Habitaciones</th><td>${escapeHTML(q.rooms)}</td></tr></table><div class="section-title">OPCIONES DE HOSPEDAJE</div><table class="options"><thead><tr><th>HOTEL</th><th>PLAN</th><th>${escapeHTML(totalHead)}</th><th>${escapeHTML(depositLabel)}</th></tr></thead><tbody>${optionsRows}</tbody></table><div class="section-title">INCLUYE</div><ul class="bullets check">${q.includes.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Servicios de acuerdo con la opción seleccionada.</li>"}</ul><div class="section-title">CONDICIONES DE RESERVACIÓN</div><ul class="bullets dot">${conditions.map(x => `<li>${escapeHTML(x)}</li>`).join("")}</ul><div class="section-title">RESUMEN DE INVERSIÓN</div><table class="summary"><thead><tr><th>OPCIÓN</th><th>TOTAL</th><th>${escapeHTML(depositLabel)}</th><th>SALDO</th></tr></thead><tbody>${summaryRows}</tbody></table><div class="footer">${escapeHTML(brandFooter)}</div><div class="footer-note">Cotización elaborada el ${escapeHTML(quoteDateLong.format(created))} · Precios sujetos a disponibilidad al momento de reservar.<br>${escapeHTML(q.folio)}</div></main></body></html>`;
+  </style></head><body>${toolbar}<main class="sheet"><div class="logo-wrap"><img class="logo" src="${logo}" alt="${escapeHTML(brandLabel(q.brand))}"></div><h1 class="title">COTIZACIÓN</h1><div class="subtitle">${escapeHTML(q.destination.toUpperCase())} · ${escapeHTML(quoteDateRangeUpper(q))}</div><table class="info"><tr><th>Destino</th><td>${escapeHTML(q.destination)}</td></tr><tr><th>Estancia</th><td>${escapeHTML(quoteStayText(q))}</td></tr><tr><th>Pasajeros</th><td>${escapeHTML(q.passengers)}</td></tr><tr><th>Habitaciones</th><td>${escapeHTML(q.rooms)}</td></tr></table><div class="section-title">OPCIONES DE HOSPEDAJE</div><table class="options"><thead><tr><th>HOTEL</th><th>PLAN</th><th>${escapeHTML(totalHead)}</th><th>APARTADO</th></tr></thead><tbody>${optionsRows}</tbody></table>${flightsHTML}<div class="section-title">INCLUYE</div><ul class="bullets check">${q.includes.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Servicios de acuerdo con la opción seleccionada.</li>"}</ul><div class="section-title">CONDICIONES DE RESERVACIÓN</div><ul class="bullets dot">${conditions.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Precios sujetos a disponibilidad al momento de reservar.</li>"}</ul><div class="section-title">RESUMEN DE INVERSIÓN</div><table class="summary"><thead><tr><th>OPCIÓN</th><th>TOTAL</th><th>APARTADO</th><th>SALDO</th></tr></thead><tbody>${summaryRows}</tbody></table><div class="footer">${escapeHTML(brandFooter)}</div><div class="footer-note">Cotización elaborada el ${escapeHTML(quoteDateLong.format(created))} · Precios sujetos a disponibilidad al momento de reservar.<br>${escapeHTML(q.folio)}</div></main></body></html>`;
 }
+
 async function printQuote(id) {
   const q = quotesStore.find(x => x.id === id); if (!q) return;
   const win = window.open("", "_blank", "width=950,height=900"); if (!win) { alert("El navegador bloqueó la ventana de impresión."); return; }

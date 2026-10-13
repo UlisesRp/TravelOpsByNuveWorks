@@ -248,13 +248,37 @@
           <label><span>Fecha de regreso</span><input id="quoteEnd" type="date" required /></label>
           <label class="full"><span>Pasajeros</span><input id="quotePassengers" required placeholder="Ej. 4 adultos + 1 menor (1 año)" /></label>
           <label class="full"><span>Habitaciones</span><input id="quoteRooms" required placeholder="Ej. 2 habitaciones: 1 doble con menor de 1 año + 1 doble" /></label>
-          <label><span>Apartado %</span><input id="quoteDepositPercent" type="number" min="0" max="100" step="0.01" value="30" required /></label>
           <label><span>Fecha límite para liquidar</span><input id="quoteLiquidationDate" type="date" /></label>
-          <label><span>Comisión agencias %</span><input id="quoteCommissionPercent" type="number" min="0" max="100" step="0.01" value="15" /></label>
+          <label><span>Comisión a declarar %</span><input id="quoteDeclaredCommissionPercent" type="number" min="0" max="100" step="0.01" value="0" /></label>
           <label><span>Estatus</span><select id="quoteStatus"><option value="borrador">Borrador</option><option value="enviada">Enviada</option><option value="aceptada">Aceptada</option><option value="caducada">Caducada</option></select></label>
+
+          <div class="full quote-manual-note">
+            <strong>Importes manuales</strong>
+            <span>Travel Ops no calcula porcentajes ni saldos. Vacía aquí los importes finales tal como salen de Excel.</span>
+          </div>
+
           <div class="full quote-options-box">
-            <div class="quote-options-head"><div><span class="field-label">Opciones de hospedaje</span><small>Captura de 1 a 5 opciones.</small></div><button class="ghost-btn compact" id="addQuoteOptionBtn" type="button">+ Agregar opción</button></div>
+            <div class="quote-options-head"><div><span class="field-label">Opciones de hospedaje</span><small>Captura de 1 a 5 opciones. Total, apartado y saldo son importes manuales.</small></div><button class="ghost-btn compact" id="addQuoteOptionBtn" type="button">+ Agregar opción</button></div>
             <div id="quoteOptionsEditor" class="quote-options-editor"></div>
+          </div>
+
+          <div class="full quote-flight-box">
+            <div class="quote-flight-head">
+              <div>
+                <span class="field-label">Vuelos</span>
+                <small>Opcional. El importe se captura tal cual y no se suma automáticamente a ninguna opción.</small>
+              </div>
+            </div>
+            <div class="quote-flight-grid">
+              <label class="full"><span>Ruta</span><input id="quoteFlightRoute" placeholder="Ej. MEX → MCO" /></label>
+              <label><span>Salida</span><input id="quoteFlightDepartureText" placeholder="Ej. AM 440 / MEX → MCO" /></label>
+              <label><span>Fecha / horario</span><input id="quoteFlightDepartureAt" type="datetime-local" /></label>
+              <label><span>Regreso</span><input id="quoteFlightReturnText" placeholder="Ej. AM 441 / MCO → MEX" /></label>
+              <label><span>Fecha / horario</span><input id="quoteFlightReturnAt" type="datetime-local" /></label>
+              <label><span>Precio / total</span><input id="quoteFlightAmount" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+              <label><span>Equipaje incluido</span><input id="quoteFlightBaggage" placeholder="Ej. 1 maleta documentada + equipaje de mano" /></label>
+              <label class="full"><span>Notas</span><textarea id="quoteFlightNotes" rows="3" placeholder="Ej. Tarifa aproximada, horarios sujetos a disponibilidad..."></textarea></label>
+            </div>
           </div>
           <label class="full"><span>Incluye <small>(un concepto por línea)</small></span><textarea id="quoteIncludes" rows="5" placeholder="Hospedaje durante 3 noches.
 Plan todo incluido: desayunos, comidas, cenas, snacks y bebidas ilimitadas."></textarea></label>
