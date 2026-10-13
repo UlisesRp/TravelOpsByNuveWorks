@@ -280,6 +280,18 @@
               <label class="full"><span>Notas</span><textarea id="quoteFlightNotes" rows="3" placeholder="Ej. Tarifa aproximada, horarios sujetos a disponibilidad..."></textarea></label>
             </div>
           </div>
+
+          <div class="full quote-services-box">
+            <div class="quote-services-head">
+              <div>
+                <span class="field-label">Servicios adicionales</span>
+                <small>Opcional. Tours, traslados, actividades, seguros u otros. Los importes son manuales y no se suman automáticamente.</small>
+              </div>
+              <button class="ghost-btn compact" id="addQuoteServiceBtn" type="button">+ Agregar servicio</button>
+            </div>
+            <div id="quoteServicesEditor" class="quote-services-editor"></div>
+          </div>
+
           <label class="full"><span>Incluye <small>(un concepto por línea)</small></span><textarea id="quoteIncludes" rows="5" placeholder="Hospedaje durante 3 noches.
 Plan todo incluido: desayunos, comidas, cenas, snacks y bebidas ilimitadas."></textarea></label>
           <label class="full"><span>Condiciones adicionales <small>(opcional, una por línea)</small></span><textarea id="quoteExtraConditions" rows="4" placeholder="Precios sujetos a disponibilidad al momento de reservar."></textarea></label>
@@ -330,6 +342,21 @@ Plan todo incluido: desayunos, comidas, cenas, snacks y bebidas ilimitadas."></t
       </form>
     </dialog>
 
+    <dialog id="quotePaymentModal" class="modal">
+      <form id="quotePaymentForm">
+        <div class="modal-head"><div><span class="eyebrow">COTIZACIÓN ACEPTADA</span><h3>Registrar abono</h3></div><button class="icon-btn square" type="button" data-close="quotePaymentModal">×</button></div>
+        <p id="quotePaymentSummary" class="muted-toolbar"></p>
+        <div class="form-grid">
+          <label class="full"><span>Opción vendida</span><select id="quotePaymentOption" required></select></label>
+          <label><span>Monto recibido</span><input id="quotePaymentAmount" type="number" min="0.01" step="0.01" required /></label>
+          <label><span>Fecha</span><input id="quotePaymentDate" type="date" required /></label>
+          <label><span>Método</span><select id="quotePaymentMethod"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Depósito</option><option>Otro</option></select></label>
+          <label><span>Referencia</span><input id="quotePaymentReference" /></label>
+          <label class="full"><span>Notas</span><textarea id="quotePaymentNotes" rows="2"></textarea></label>
+        </div>
+        <div class="modal-actions"><button type="button" class="ghost-btn" data-close="quotePaymentModal">Cancelar</button><button type="submit" class="primary-btn">Guardar pago</button></div>
+      </form>
+    </dialog>
     <dialog id="billingModal" class="modal wide-small">
       <form method="dialog" id="billingForm">
         <input type="hidden" id="billingBookingId" />
@@ -374,6 +401,7 @@ Plan todo incluido: desayunos, comidas, cenas, snacks y bebidas ilimitadas."></t
 
   <script src="js/supabase.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/receipt-share.js"></script>
   <script src="js/quotes.js"></script>
   <script src="js/calendar-events.js"></script>
 </body>

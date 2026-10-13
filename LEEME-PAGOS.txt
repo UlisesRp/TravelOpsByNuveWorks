@@ -1,0 +1,16 @@
+TRAVEL OPS — ACTUALIZACIÓN DE PAGOS Y RECIBOS
+
+1. La base de datos debe tener payments.receipt_number y el trigger trg_payment_receipt ya creados en Supabase (confirmados por el usuario).
+2. Sube los archivos completos conservando la estructura de carpetas.
+3. Entra en Pagos > Gestionar, elige una reserva y registra un abono de prueba con un monto MENOR o igual al saldo.
+4. Confirma que el abono persiste al recargar la página, que el total y saldo se recalculan y que se muestra en el historial.
+5. Abre «PDF / imprimir». Elige «Guardar como PDF» en el diálogo del navegador. El recibo usa receipt_number de Supabase para los pagos nuevos; para registros anteriores usa el folio histórico calculado en el navegador.
+6. Para compartir, usa «WhatsApp» o «Correo», luego ADJUNTA MANUALMENTE el PDF guardado. La app no envía archivos adjuntos automáticamente.
+7. Prueba con ambas marcas, Pink Sky Travel y Velora Travel. Verifica imagen y total correctos.
+8. No hagas push ni registres pagos reales hasta validar el flujo completo con un pago de prueba.
+
+NOTAS:
+- Los recibos no son facturas CFDI.
+- En esta entrega los pagos aún pueden editarse o borrarse; la cancelación contable inmutable y conciliación transaccional entre payments y bookings están pendientes.
+- El código bloquea abonos que superan el saldo de una booking en la interfaz; para concurrencia multiusuario la validación también debe implementarse en la base de datos.
+- Las reservas de la tabla reservations y las bookings son flujos distintos; el módulo de pagos de salidas presentado aquí trabaja sobre bookings. No se modifica la lógica de reservations/quotes.

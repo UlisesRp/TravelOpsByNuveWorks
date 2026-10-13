@@ -277,7 +277,7 @@ async function hydrateFromSupabase() {
     id: d.id, brand: d.brand, destination: d.destination, start: d.start_date, end: d.end_date, capacity: d.capacity, notes: d.notes || "",
     bookings: (bookings || []).filter(b => b.departure_id === d.id).map(b => {
       const bPayments = (payments || []).filter(p => p.booking_id === b.id).map(p => ({
-        id: p.id, amount: Number(p.amount || 0), paidOn: p.paid_on, method: p.method || "", reference: p.reference || "", notes: p.notes || "",
+        id: p.id, receiptNumber: p.receipt_number || "", amount: Number(p.amount || 0), paidOn: p.paid_on, method: p.method || "", reference: p.reference || "", notes: p.notes || "",
         createdBy: actorFor(p.created_by), updatedBy: actorFor(p.updated_by || p.created_by), createdAt: p.created_at, updatedAt: p.updated_at || p.created_at
       }));
       return {
@@ -616,12 +616,13 @@ function renderDetailPayments(d) {
   $$('[data-add-payment-booking]', $("#detailContent")).forEach(btn => btn.addEventListener("click", () => openPaymentModal(d.id, "", btn.dataset.addPaymentBooking)));
   $$('[data-edit-payment]', $("#detailContent")).forEach(btn => btn.addEventListener("click", () => openPaymentModal(d.id, btn.dataset.editPayment)));
   $$('[data-print-receipt]', $("#detailContent")).forEach(btn => btn.addEventListener("click", () => printPaymentReceipt(d.id, btn.dataset.printReceipt)));
+  $$(`[data-share-payment]`, $("#detailContent")).forEach(btn => btn.addEventListener("click", () => sharePaymentReceipt(d.id, btn.dataset.sharePayment, btn.dataset.channel)));
   $$('[data-delete-payment]', $("#detailContent")).forEach(btn => btn.addEventListener("click", () => deletePayment(d.id, btn.dataset.deletePayment)));
   $$('[data-edit-booking-total]', $("#detailContent")).forEach(btn => btn.addEventListener("click", () => openBookingModal(d.id, btn.dataset.editBookingTotal)));
 }
 function paymentBookingCardHTML(d, b, highlight) {
   const paid = recalcBookingPaid(b), saldo = Number(b.total || 0) - paid; const payments = [...(b.payments || [])].sort((a, z) => String(z.paidOn).localeCompare(String(a.paidOn)));
-  return `<section class="finance-card ${highlight ? "highlight" : ""}"><div class="finance-head"><div><strong>${escapeHTML(b.name)}</strong><small>Total ${money.format(b.total || 0)} · Pagado ${money.format(paid)} · Saldo ${money.format(saldo)}</small></div><div class="inline-actions"><button class="small-btn" data-edit-booking-total="${b.id}">Editar total</button><button class="primary-btn compact" data-add-payment-booking="${b.id}">+ Abono</button></div></div>${payments.length ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Referencia</th><th>Capturó</th><th>Acciones</th></tr></thead><tbody>${payments.map(p => `<tr><td>${dateFmt.format(parseDate(p.paidOn))}</td><td><strong>${money.format(p.amount)}</strong></td><td>${escapeHTML(p.method || "—")}</td><td>${escapeHTML(p.reference || "—")}</td><td>${actorHTML(p.updatedBy || p.createdBy, true)}</td><td><div class="row-actions"><button class="small-btn receipt-btn" data-print-receipt="${p.id}">Recibo</button><button class="small-btn" data-edit-payment="${p.id}">Editar</button><button class="small-btn danger" data-delete-payment="${p.id}">Borrar</button></div></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty compact-empty">Sin pagos registrados.</div>`}</section>`;
+  return `<section class="finance-card ${highlight ? "highlight" : ""}"><div class="finance-head"><div><strong>${escapeHTML(b.name)}</strong><small>Total ${money.format(b.total || 0)} · Pagado ${money.format(paid)} · Saldo ${money.format(saldo)}</small></div><div class="inline-actions"><button class="small-btn" data-edit-booking-total="${b.id}">Editar total</button><button class="primary-btn compact" data-add-payment-booking="${b.id}">+ Abono</button></div></div>${payments.length ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Monto</th><th>Método</th><th>Referencia</th><th>Capturó</th><th>Acciones</th></tr></thead><tbody>${payments.map(p => `<tr><td>${dateFmt.format(parseDate(p.paidOn))}</td><td><strong>${money.format(p.amount)}</strong></td><td>${escapeHTML(p.method || "—")}</td><td>${escapeHTML(p.reference || "—")}</td><td>${actorHTML(p.updatedBy || p.createdBy, true)}</td><td><div class="row-actions"><button class="small-btn receipt-btn" data-print-receipt="${p.id}">PDF / imprimir</button><button class="small-btn" data-share-payment="${p.id}" data-channel="whatsapp">WhatsApp</button><button class="small-btn" data-share-payment="${p.id}" data-channel="email">Correo</button><button class="small-btn" data-edit-payment="${p.id}">Editar</button><button class="small-btn danger" data-delete-payment="${p.id}">Borrar</button></div></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty compact-empty">Sin pagos registrados.</div>`}</section>`;
 }
 function renderDetailBilling(d) {
   const selectedBooking = $("#departureDetailModal").dataset.bookingId || "";
@@ -862,13 +863,70 @@ function openPaymentModal(depId, paymentId = "", bookingId = "") {
   $("#paymentAmount").value = record?.payment.amount ?? ""; $("#paymentDate").value = record?.payment.paidOn || new Date().toISOString().slice(0, 10); $("#paymentMethod").value = record?.payment.method || "Transferencia"; $("#paymentReference").value = record?.payment.reference || ""; $("#paymentNotes").value = record?.payment.notes || ""; $("#paymentModal").showModal();
 }
 $("#paymentForm").addEventListener("submit", async e => {
-  e.preventDefault(); const dep = findDeparture(e.currentTarget.dataset.departureId); if (!dep) return; const paymentId = $("#paymentId").value; const targetBooking = findBooking(dep, $("#paymentBooking").value); if (!targetBooking) return; const actor = currentActor(); const payload = { amount: Number($("#paymentAmount").value), paidOn: $("#paymentDate").value, method: $("#paymentMethod").value, reference: $("#paymentReference").value.trim(), notes: $("#paymentNotes").value.trim(), updatedBy: actor, updatedAt: nowISO() }; if (!payload.amount || payload.amount <= 0) return;
-  if (paymentId) { const record = findPaymentRecord(dep, paymentId); if (!record) return; record.booking.payments.splice(record.index, 1); const p = { ...record.payment, ...payload }; targetBooking.payments.push(p); if (state.supabase) { const { error } = await state.supabase.from("payments").update({ booking_id: targetBooking.id, amount: p.amount, paid_on: p.paidOn, method: p.method, reference: p.reference, notes: p.notes, updated_by: actor.id, updated_at: p.updatedAt }).eq("id", p.id); if (error) { alert(error.message); return; } } await logAction("payment", p.id, "updated", { amount: p.amount, customer: targetBooking.name }); }
-  else { const p = { id: uid("pay"), ...payload, createdBy: actor, createdAt: nowISO() }; if (state.supabase) { const { data, error } = await state.supabase.from("payments").insert({ booking_id: targetBooking.id, amount: p.amount, paid_on: p.paidOn, method: p.method, reference: p.reference, notes: p.notes, created_by: actor.id, updated_by: actor.id }).select().single(); if (error) { alert(error.message); return; } p.id = data.id; } targetBooking.payments.push(p); await logAction("payment", p.id, "created", { amount: p.amount, customer: targetBooking.name }); }
-  dep.bookings.forEach(b => recalcBookingPaid(b)); if (state.supabase) for (const b of dep.bookings) await state.supabase.from("bookings").update({ paid_amount: b.paid }).eq("id", b.id);
-  saveDemoData(); $("#paymentModal").close(); renderAll(); renderDetail("payments");
+  e.preventDefault();
+  const form = e.currentTarget, submit = form.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  const dep = findDeparture(form.dataset.departureId), paymentId = $("#paymentId").value;
+  const targetBooking = dep && findBooking(dep, $("#paymentBooking").value);
+  if (!targetBooking) return;
+  const actor = currentActor();
+  const payload = { amount: Number($("#paymentAmount").value), paidOn: $("#paymentDate").value, method: $("#paymentMethod").value, reference: $("#paymentReference").value.trim(), notes: $("#paymentNotes").value.trim(), updatedBy: actor, updatedAt: nowISO() };
+  if (!Number.isFinite(payload.amount) || payload.amount <= 0 || !payload.paidOn) return alert("Captura una fecha y un monto válido.");
+  const record = paymentId ? findPaymentRecord(dep, paymentId) : null;
+  if (paymentId && !record) return;
+  const paidWithoutEdited = (targetBooking.payments || []).filter(p => p.id !== paymentId).reduce((total, p) => total + Number(p.amount || 0), 0);
+  if (paidWithoutEdited + payload.amount > Number(targetBooking.total || 0) + 0.001) return alert("El abono supera el saldo de la reserva. Revisa el total antes de continuar.");
+  submit.disabled = true;
+  try {
+    let p;
+    if (record) {
+      if (state.supabase) {
+        const { error } = await state.supabase.from("payments").update({ booking_id: targetBooking.id, amount: payload.amount, paid_on: payload.paidOn, method: payload.method, reference: payload.reference, notes: payload.notes, updated_by: actor.id, updated_at: payload.updatedAt }).eq("id", record.payment.id);
+        if (error) throw error;
+      }
+      record.booking.payments.splice(record.index, 1);
+      p = { ...record.payment, ...payload };
+      targetBooking.payments.push(p);
+    } else {
+      p = { id: uid("pay"), ...payload, createdBy: actor, createdAt: nowISO() };
+      if (state.supabase) {
+        const { data, error } = await state.supabase.from("payments").insert({ booking_id: targetBooking.id, amount: p.amount, paid_on: p.paidOn, method: p.method, reference: p.reference, notes: p.notes, created_by: actor.id, updated_by: actor.id }).select().single();
+        if (error) throw error;
+        p.id = data.id;
+        p.receiptNumber = data.receipt_number || "";
+      }
+      targetBooking.payments.push(p);
+    }
+    const affected = [...new Set([targetBooking, record?.booking].filter(Boolean))];
+    for (const b of affected) {
+      recalcBookingPaid(b);
+      if (state.supabase) {
+        const { error } = await state.supabase.from("bookings").update({ paid_amount: b.paid }).eq("id", b.id);
+        if (error) console.warn("El pago se guardó pero no se actualizó paid_amount:", error);
+      }
+    }
+    await logAction("payment", p.id, record ? "updated" : "created", { amount: p.amount, customer: targetBooking.name, folio: p.receiptNumber || "" });
+    saveDemoData(); $("#paymentModal").close(); renderAll(); renderDetail("payments");
+  } catch (error) {
+    alert("No se pudo guardar el pago: " + (error.message || error));
+  } finally { submit.disabled = false; }
 });
-async function deletePayment(depId, paymentId) { const dep = findDeparture(depId); const record = findPaymentRecord(dep, paymentId); if (!record || !confirm(`¿Borrar el pago de ${money.format(record.payment.amount)}?`)) return; record.booking.payments.splice(record.index, 1); recalcBookingPaid(record.booking); if (state.supabase) { const { error } = await state.supabase.from("payments").delete().eq("id", paymentId); if (error) { alert(error.message); return; } await state.supabase.from("bookings").update({ paid_amount: record.booking.paid }).eq("id", record.booking.id); } await logAction("payment", paymentId, "deleted", { amount: record.payment.amount, customer: record.booking.name }); saveDemoData(); renderAll(); renderDetail("payments"); }
+async function deletePayment(depId, paymentId) {
+  const dep = findDeparture(depId), record = findPaymentRecord(dep, paymentId);
+  if (!record || !confirm(`¿Borrar el pago de ${money.format(record.payment.amount)}? Esta acción elimina también su recibo.`)) return;
+  if (state.supabase) {
+    const { error } = await state.supabase.from("payments").delete().eq("id", paymentId);
+    if (error) return alert("No se pudo borrar el pago: " + error.message);
+  }
+  record.booking.payments.splice(record.index, 1);
+  recalcBookingPaid(record.booking);
+  if (state.supabase) {
+    const { error } = await state.supabase.from("bookings").update({ paid_amount: record.booking.paid }).eq("id", record.booking.id);
+    if (error) console.warn("Pago eliminado; no se pudo actualizar paid_amount", error);
+  }
+  await logAction("payment", paymentId, "deleted", { amount: record.payment.amount, customer: record.booking.name, folio: record.payment.receiptNumber || "" });
+  saveDemoData(); renderAll(); renderDetail("payments");
+}
 
 function openBillingModal(depId, bookingId) {
   const dep = findDeparture(depId); const b = findBooking(dep, bookingId); if (!b) return; const i = b.invoice; $("#billingForm").dataset.departureId = depId; $("#billingBookingId").value = bookingId; $("#billingBookingName").value = b.name; $("#invoiceRequired").value = String(Boolean(i.required)); $("#invoiceStatus").value = i.status || "no_solicitada"; $("#invoiceRFC").value = i.rfc || ""; $("#invoiceBusinessName").value = i.businessName || ""; $("#invoiceRegime").value = i.regime || ""; $("#invoiceZip").value = i.zip || ""; $("#invoiceCFDI").value = i.cfdi || ""; $("#invoiceEmail").value = i.email || ""; $("#invoiceFolio").value = i.folio || ""; $("#invoiceDate").value = i.date || ""; $("#invoiceNotes").value = i.notes || ""; $("#billingModal").showModal();
@@ -908,10 +966,31 @@ function printRooming(depId) {
 }
 
 function paymentReceiptFolio(dep, payment) {
+  if (payment.receiptNumber) return payment.receiptNumber;
   const brandCode = dep.brand === "pink" ? "PINK" : "VEL";
   const period = String(payment.paidOn || "").replace(/-/g, "").slice(0, 6) || new Date().toISOString().slice(0, 7).replace("-", "");
   const suffix = String(payment.id || "PAGO").replace(/[^a-z0-9]/gi, "").slice(-6).toUpperCase().padStart(6, "0");
   return `REC-${brandCode}-${period}-${suffix}`;
+}
+async function sharePaymentReceipt(depId, paymentId, channel) {
+  const dep = findDeparture(depId), record = findPaymentRecord(dep, paymentId);
+  if (!dep || !record) return;
+  const { booking, payment } = record;
+  const folio = paymentReceiptFolio(dep, payment);
+  const paid = recalcBookingPaid(booking);
+  const message = `Recibo de pago ${folio}\n${brandLabel(dep.brand)}\nCliente: ${booking.name}\nDestino: ${dep.destination}\nPago recibido: ${money.format(payment.amount)}\nFecha: ${payment.paidOn}\nSaldo actual: ${money.format(Math.max(0, Number(booking.total || 0) - paid))}`;
+  const paidThroughThisPayment = [...(booking.payments || [])].filter(p =>
+    (p.paidOn || '') < (payment.paidOn || '') ||
+    ((p.paidOn || '') === (payment.paidOn || '') && String(p.id) <= String(payment.id))
+  ).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const file = await createTravelReceiptPDF({
+    folio, brand:dep.brand, customer:booking.name, destination:dep.destination,
+    concept:'Salida / reserva', paidOn:payment.paidOn, amount:Number(payment.amount),
+    total:Number(booking.total || 0), paid:paidThroughThisPayment,
+    method:payment.method, reference:payment.reference, notes:payment.notes
+  });
+  if (!file) return;
+  await shareTravelReceiptFile(file, message, channel);
 }
 async function printPaymentReceipt(depId, paymentId) {
   const dep = findDeparture(depId); const record = findPaymentRecord(dep, paymentId); if (!dep || !record) return;

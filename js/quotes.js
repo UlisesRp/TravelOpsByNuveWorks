@@ -7,12 +7,14 @@ const QUOTES_DEMO_KEY = "travelops_demo_quotes_v19";
 const QUOTE_TABLE = "travelops_quotes";
 const QUOTE_OPTIONS_TABLE = "travelops_quote_options";
 const QUOTE_FLIGHTS_TABLE = "travelops_quote_flights";
+const QUOTE_SERVICES_TABLE = "travelops_quote_services";
 const QUOTE_FOLIO_RPC = "next_travelops_v19_quote_folio";
 const QUOTE_SHARE_RPC = "get_shared_travelops_quote_v2";
 const MAX_QUOTE_OPTIONS = 5;
 let quotesSupabase = null;
 let quotesStore = [];
 let quoteOptionsDraft = [];
+let quoteServicesDraft = [];
 let quoteProfiles = new Map();
 let quoteContacts = [];
 
@@ -103,6 +105,15 @@ function normalizeQuote(q) {
       notes: f.notes || "",
       sortOrder: Number(f.sortOrder ?? f.sort_order ?? i)
     })) : [],
+    services: Array.isArray(q.services) ? q.services.map((svc, i) => ({
+      id: svc.id || uid("qsvc"),
+      type: svc.type || svc.service_type || "otro",
+      name: svc.name || svc.service_name || "",
+      detail: svc.detail || "",
+      amount: svc.amount == null && svc.display_amount == null ? null : Number(svc.amount ?? svc.display_amount),
+      notes: svc.notes || "",
+      sortOrder: Number(svc.sortOrder ?? svc.sort_order ?? i)
+    })) : [],
     options: Array.isArray(q.options) ? q.options.map((o, i) => ({
       id: o.id || uid("qopt"),
       hotel: o.hotel || "",
@@ -131,6 +142,7 @@ async function hydrateQuotes() {
     { data: quotes, error: qe },
     { data: opts, error: oe },
     { data: flights, error: fe },
+    { data: services, error: se },
     { data: agencies, error: ae },
     { data: bookings, error: be },
     { data: departures, error: de },
@@ -140,14 +152,15 @@ async function hydrateQuotes() {
     quotesSupabase.from(QUOTE_TABLE).select("*").order("created_at", { ascending: false }),
     quotesSupabase.from(QUOTE_OPTIONS_TABLE).select("*").order("sort_order", { ascending: true }),
     quotesSupabase.from(QUOTE_FLIGHTS_TABLE).select("*").order("sort_order", { ascending: true }),
+    quotesSupabase.from(QUOTE_SERVICES_TABLE).select("*").order("sort_order", { ascending: true }),
     quotesSupabase.from("agencies").select("id,name").order("name"),
     quotesSupabase.from("bookings").select("id,departure_id,customer_name,agency_id"),
     quotesSupabase.from("departures").select("id,brand"),
     quotesSupabase.from("crm_leads").select("id,name,phone,brand,interest,status,notes").order("created_at", { ascending: false })
   ]);
 
-  if (qe || oe || fe) {
-    console.warn("Travel Ops cotizaciones:", qe || oe || fe);
+  if (qe || oe || fe || se) {
+    console.warn("Travel Ops cotizaciones:", qe || oe || fe || se);
     $("#quoteCards").innerHTML = `<div class="empty">No se pudieron cargar las cotizaciones. Ejecuta <strong>migration_v1_9_1_quotes_fix.sql</strong> en Supabase.</div>`;
     return;
   }
@@ -164,13 +177,15 @@ async function hydrateQuotes() {
     normalizeQuote({
       ...row,
       options: (opts || []).filter(o => o.quote_id === row.id),
-      flights: (flights || []).filter(f => f.quote_id === row.id)
+      flights: (flights || []).filter(f => f.quote_id === row.id),
+      services: (services || []).filter(svc => svc.quote_id === row.id)
     })
   );
 
   buildQuoteContacts(agencies || [], bookings || [], departures || [], crmLeads || []);
   renderQuoteCustomerList();
   renderQuotes();
+  void refreshQuotePayments();
 }
 
 function buildQuoteContacts(agencies = [], bookings = [], departures = [], crmLeads = []) {
@@ -325,6 +340,55 @@ function quoteDateTimeLocalValue(value) {
   if (!value) return "";
   return String(value).replace(" ", "T").slice(0, 16);
 }
+
+function blankQuoteService() {
+  return { id: uid("qsvc"), type: "traslado", name: "", detail: "", amount: null, notes: "" };
+}
+function quoteServiceTypeLabel(value) {
+  return ({ traslado: "Traslado", tour: "Tour / actividad", seguro: "Seguro", entrada: "Entrada", otro: "Otro" })[value] || "Otro";
+}
+function renderQuoteServicesEditor(services = quoteServicesDraft) {
+  quoteServicesDraft = (services || []).map(svc => ({ ...blankQuoteService(), ...svc }));
+  const root = $("#quoteServicesEditor");
+  if (!root) return;
+  root.innerHTML = quoteServicesDraft.length ? quoteServicesDraft.map((svc, i) => `<article class="quote-service-editor" data-service-id="${escapeHTML(svc.id)}">
+    <div class="quote-option-title"><strong>Servicio ${i + 1}</strong><button class="mini-remove" type="button" data-remove-qsvc="${escapeHTML(svc.id)}">×</button></div>
+    <div class="quote-service-fields">
+      <label><span>Tipo</span><select data-qsvc="type">
+        <option value="traslado" ${svc.type === "traslado" ? "selected" : ""}>Traslado</option>
+        <option value="tour" ${svc.type === "tour" ? "selected" : ""}>Tour / actividad</option>
+        <option value="seguro" ${svc.type === "seguro" ? "selected" : ""}>Seguro</option>
+        <option value="entrada" ${svc.type === "entrada" ? "selected" : ""}>Entrada</option>
+        <option value="otro" ${svc.type === "otro" ? "selected" : ""}>Otro</option>
+      </select></label>
+      <label><span>Servicio</span><input data-qsvc="name" value="${escapeHTML(svc.name)}" placeholder="Ej. Traslado aeropuerto - hotel" required /></label>
+      <label><span>Precio / total</span><input data-qsvc="amount" type="number" min="0" step="0.01" value="${svc.amount ?? ""}" placeholder="Opcional" /></label>
+      <label class="wide"><span>Detalle</span><input data-qsvc="detail" value="${escapeHTML(svc.detail)}" placeholder="Ej. Redondo, privado, 4 pasajeros" /></label>
+      <label class="wide"><span>Notas</span><input data-qsvc="notes" value="${escapeHTML(svc.notes)}" placeholder="Opcional" /></label>
+    </div>
+  </article>`).join("") : `<div class="quote-services-empty">Sin servicios adicionales. Agrégalos solo cuando la cotización los necesite.</div>`;
+  $$('[data-remove-qsvc]', root).forEach(btn => btn.addEventListener("click", () => {
+    syncQuoteServicesDraft();
+    quoteServicesDraft = quoteServicesDraft.filter(svc => svc.id !== btn.dataset.removeQsvc);
+    renderQuoteServicesEditor(quoteServicesDraft);
+  }));
+}
+function syncQuoteServicesDraft() {
+  const root = $("#quoteServicesEditor");
+  if (!root) return [];
+  quoteServicesDraft = $$(".quote-service-editor", root).map(card => {
+    const amountValue = card.querySelector('[data-qsvc="amount"]').value;
+    return {
+      id: card.dataset.serviceId || uid("qsvc"),
+      type: card.querySelector('[data-qsvc="type"]').value || "otro",
+      name: card.querySelector('[data-qsvc="name"]').value.trim(),
+      detail: card.querySelector('[data-qsvc="detail"]').value.trim(),
+      amount: amountValue === "" ? null : Number(amountValue),
+      notes: card.querySelector('[data-qsvc="notes"]').value.trim()
+    };
+  });
+  return quoteServicesDraft;
+}
 function refreshQuotePricingPreview() {
   // Cotizaciones v2 manuales: no se realizan cálculos automáticos.
 }
@@ -388,6 +452,7 @@ function openQuoteModal(id = "") {
   $("#quoteFlightAmount").value = Number(flight.amount || 0) || "";
   $("#quoteFlightBaggage").value = flight.baggage || "";
   $("#quoteFlightNotes").value = flight.notes || "";
+  renderQuoteServicesEditor(q?.services || []);
   $("#quoteIncludes").value = (q?.includes || ["Hospedaje durante la estancia indicada."]).join("\n");
   $("#quoteExtraConditions").value = (q?.extraConditions || []).join("\n");
   renderQuoteOptionsEditor(q?.options?.length ? q.options : [blankQuoteOption()]);
@@ -409,6 +474,7 @@ async function nextQuoteFolio(brand) {
 async function saveQuoteFromForm(e) {
   e.preventDefault();
   syncQuoteOptionDraft();
+  syncQuoteServicesDraft();
   if (!quoteOptionsDraft.length || quoteOptionsDraft.some(o => !o.hotel || !o.plan || o.total <= 0)) {
     alert("Completa hotel, plan y total final de cada opción.");
     return;
@@ -437,6 +503,7 @@ async function saveQuoteFromForm(e) {
     extraConditions: quoteLines($("#quoteExtraConditions").value),
     options: quoteOptionsDraft,
     flights: quoteFlightFromForm(),
+    services: quoteServicesDraft.filter(svc => svc.name),
     createdBy: old?.createdBy || actor,
     updatedBy: actor,
     createdAt: old?.createdAt || nowISO(),
@@ -512,6 +579,29 @@ async function saveQuoteFromForm(e) {
         baggage: f.baggage || "", notes: f.notes || "", sortOrder: Number(f.sort_order || 0)
       }));
     }
+
+    const { error: delServiceErr } = await quotesSupabase.from(QUOTE_SERVICES_TABLE).delete().eq("quote_id", quote.id);
+    if (delServiceErr) { alert(delServiceErr.message); return; }
+    if (quote.services.length) {
+      const serviceRows = quote.services.map((svc, i) => ({
+        quote_id: quote.id,
+        sort_order: i,
+        service_type: svc.type || "otro",
+        service_name: svc.name,
+        detail: svc.detail || null,
+        display_amount: svc.amount == null ? null : Number(svc.amount),
+        notes: svc.notes || null,
+        created_by: actor.id,
+        updated_by: actor.id
+      }));
+      const { data: savedServices, error: serviceErr } = await quotesSupabase.from(QUOTE_SERVICES_TABLE).insert(serviceRows).select();
+      if (serviceErr) { alert(serviceErr.message); return; }
+      quote.services = (savedServices || []).map(svc => ({
+        id: svc.id, type: svc.service_type || "otro", name: svc.service_name || "", detail: svc.detail || "",
+        amount: svc.display_amount == null ? null : Number(svc.display_amount), notes: svc.notes || "",
+        sortOrder: Number(svc.sort_order || 0)
+      }));
+    }
   }
 
   if (old) quotesStore.splice(quotesStore.indexOf(old), 1, quote); else quotesStore.unshift(quote);
@@ -552,7 +642,8 @@ async function duplicateQuote(id) {
     createdAt: nowISO(),
     updatedAt: nowISO(),
     options: source.options.map(o => ({ ...o, id: uid("qopt") })),
-    flights: (source.flights || []).map(f => ({ ...f, id: uid("qflight") }))
+    flights: (source.flights || []).map(f => ({ ...f, id: uid("qflight") })),
+    services: (source.services || []).map(svc => ({ ...svc, id: uid("qsvc") }))
   });
   if (quotesSupabase) {
     const { data, error } = await quotesSupabase.from(QUOTE_TABLE).insert({
@@ -606,6 +697,22 @@ async function duplicateQuote(id) {
         baggage: f.baggage || "", notes: f.notes || "", sortOrder: Number(f.sort_order || 0)
       }));
     }
+
+    if (copy.services.length) {
+      const { data: svcs, error: se } = await quotesSupabase.from(QUOTE_SERVICES_TABLE).insert(
+        copy.services.map((svc, i) => ({
+          quote_id: copy.id, sort_order: i, service_type: svc.type || "otro", service_name: svc.name,
+          detail: svc.detail || null, display_amount: svc.amount == null ? null : Number(svc.amount), notes: svc.notes || null,
+          created_by: actor.id, updated_by: actor.id
+        }))
+      ).select();
+      if (se) { alert(se.message); return; }
+      copy.services = (svcs || []).map(svc => ({
+        id: svc.id, type: svc.service_type || "otro", name: svc.service_name || "", detail: svc.detail || "",
+        amount: svc.display_amount == null ? null : Number(svc.display_amount), notes: svc.notes || "",
+        sortOrder: Number(svc.sort_order || 0)
+      }));
+    }
   }
   quotesStore.unshift(copy); saveDemoQuotes(); renderQuotes();
   await logAction("quote", copy.id, "duplicated", { from: source.folio, folio: copy.folio });
@@ -654,13 +761,15 @@ function quoteDocumentHTML(q, { publicView = false } = {}) {
     ${f.notes ? `<tr><th>Notas</th><td>${escapeHTML(f.notes)}</td></tr>` : ""}
   </table>`).join("")}` : "";
 
+  const servicesHTML = (q.services || []).length ? `<div class="section-title">SERVICIOS ADICIONALES</div><table class="services-table"><thead><tr><th>TIPO</th><th>SERVICIO</th><th>DETALLE</th><th>PRECIO / TOTAL</th></tr></thead><tbody>${q.services.map(svc => `<tr><td>${escapeHTML(quoteServiceTypeLabel(svc.type))}</td><td><strong>${escapeHTML(svc.name)}</strong>${svc.notes ? `<br><small>${escapeHTML(svc.notes)}</small>` : ""}</td><td>${escapeHTML(svc.detail || "—")}</td><td>${svc.amount == null ? "—" : `<strong>${quoteMoney.format(svc.amount)}</strong>`}</td></tr>`).join("")}</tbody></table>` : "";
+
   const created = new Date(q.createdAt || nowISO());
   const brandFooter = q.brand === "pink" ? "PINK SKY TRAVEL · Mayorista de viajes" : "VELORA TRAVEL";
   const toolbar = publicView ? `<div class="client-toolbar"><span>Cotización ${escapeHTML(q.folio)}</span><button type="button" onclick="window.print()">Imprimir / Guardar PDF</button></div>` : "";
 
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(q.folio)} · Cotización</title><style>
-    @page{size:A4;margin:11mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#241529;margin:0;background:${publicView ? "#f3f4f7" : "white"};font-size:11px}.client-toolbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 18px;background:#111827;color:#fff;font-size:12px}.client-toolbar button{border:0;border-radius:9px;background:#fff;color:#111827;font-weight:800;padding:9px 12px;cursor:pointer}.sheet{max-width:794px;margin:${publicView ? "24px auto" : "auto"};background:#fff;${publicView ? "padding:24px;box-shadow:0 16px 55px rgba(17,24,39,.12);border-radius:16px" : ""}}.logo-wrap{text-align:center;margin:2px 0 8px}.logo{width:118px;height:76px;object-fit:contain}.title{text-align:center;color:${t.primary};font-size:27px;font-weight:800;margin:0}.subtitle{text-align:center;color:${t.accent};font-size:12px;font-weight:800;margin:2px 0 14px;text-transform:uppercase}.info{width:100%;border-collapse:collapse;margin-bottom:10px}.info th{width:21%;background:${t.primary};color:white;text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase}.info td{background:${t.pale};padding:8px 10px;border:1px solid #dfd6df}.section-title{font-size:14px;color:${t.primary};font-weight:900;margin:12px 0 6px}.options,.summary{width:100%;border-collapse:collapse}.options th{background:${t.primary};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.options td,.summary td{background:${t.pale};padding:9px 10px;border:1px solid #dfd6df}.summary th{background:${t.accent};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.bullets{list-style:none;padding:0;margin:6px 0}.bullets li{margin:8px 0;line-height:1.45;padding-left:15px;position:relative}.bullets.check li:before{content:"✓";position:absolute;left:0;font-weight:900;color:${t.primary}}.bullets.dot li:before{content:"•";position:absolute;left:2px;color:${t.primary}}.footer{text-align:center;margin-top:18px;color:${t.primary};font-weight:900;font-size:11px}.footer-note{text-align:center;margin-top:10px;color:#796c7c;font-size:8.5px}.invalid-share{max-width:680px;margin:80px auto;background:#fff;border-radius:18px;padding:34px;text-align:center;box-shadow:0 16px 55px rgba(17,24,39,.12)}@media(max-width:820px){.sheet{margin:0;border-radius:0;box-shadow:none;padding:18px}.client-toolbar{position:static}.options,.summary{font-size:9px}.options th,.options td,.summary th,.summary td{padding:7px 5px}}@media print{body{background:#fff;font-size:10.5px}.client-toolbar{display:none!important}.sheet{max-width:none;margin:0;padding:0;box-shadow:none;border-radius:0}.title{font-size:24px}.section-title{margin-top:10px}.logo{height:66px}.options td,.summary td,.info td,.info th{padding:7px 9px}}
-  </style></head><body>${toolbar}<main class="sheet"><div class="logo-wrap"><img class="logo" src="${logo}" alt="${escapeHTML(brandLabel(q.brand))}"></div><h1 class="title">COTIZACIÓN</h1><div class="subtitle">${escapeHTML(q.destination.toUpperCase())} · ${escapeHTML(quoteDateRangeUpper(q))}</div><table class="info"><tr><th>Destino</th><td>${escapeHTML(q.destination)}</td></tr><tr><th>Estancia</th><td>${escapeHTML(quoteStayText(q))}</td></tr><tr><th>Pasajeros</th><td>${escapeHTML(q.passengers)}</td></tr><tr><th>Habitaciones</th><td>${escapeHTML(q.rooms)}</td></tr></table><div class="section-title">OPCIONES DE HOSPEDAJE</div><table class="options"><thead><tr><th>HOTEL</th><th>PLAN</th><th>${escapeHTML(totalHead)}</th><th>APARTADO</th></tr></thead><tbody>${optionsRows}</tbody></table>${flightsHTML}<div class="section-title">INCLUYE</div><ul class="bullets check">${q.includes.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Servicios de acuerdo con la opción seleccionada.</li>"}</ul><div class="section-title">CONDICIONES DE RESERVACIÓN</div><ul class="bullets dot">${conditions.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Precios sujetos a disponibilidad al momento de reservar.</li>"}</ul><div class="section-title">RESUMEN DE INVERSIÓN</div><table class="summary"><thead><tr><th>OPCIÓN</th><th>TOTAL</th><th>APARTADO</th><th>SALDO</th></tr></thead><tbody>${summaryRows}</tbody></table><div class="footer">${escapeHTML(brandFooter)}</div><div class="footer-note">Cotización elaborada el ${escapeHTML(quoteDateLong.format(created))} · Precios sujetos a disponibilidad al momento de reservar.<br>${escapeHTML(q.folio)}</div></main></body></html>`;
+    @page{size:A4;margin:11mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#241529;margin:0;background:${publicView ? "#f3f4f7" : "white"};font-size:11px}.client-toolbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 18px;background:#111827;color:#fff;font-size:12px}.client-toolbar button{border:0;border-radius:9px;background:#fff;color:#111827;font-weight:800;padding:9px 12px;cursor:pointer}.sheet{max-width:794px;margin:${publicView ? "24px auto" : "auto"};background:#fff;${publicView ? "padding:24px;box-shadow:0 16px 55px rgba(17,24,39,.12);border-radius:16px" : ""}}.logo-wrap{text-align:center;margin:2px 0 8px}.logo{width:118px;height:76px;object-fit:contain}.title{text-align:center;color:${t.primary};font-size:27px;font-weight:800;margin:0}.subtitle{text-align:center;color:${t.accent};font-size:12px;font-weight:800;margin:2px 0 14px;text-transform:uppercase}.info{width:100%;border-collapse:collapse;margin-bottom:10px}.info th{width:21%;background:${t.primary};color:white;text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase}.info td{background:${t.pale};padding:8px 10px;border:1px solid #dfd6df}.section-title{font-size:14px;color:${t.primary};font-weight:900;margin:12px 0 6px}.options,.summary,.services-table{width:100%;border-collapse:collapse}.options th{background:${t.primary};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.options td,.summary td,.services-table td{background:${t.pale};padding:9px 10px;border:1px solid #dfd6df}.services-table th{background:${t.primary};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.services-table small{color:#796c7c}.summary th{background:${t.accent};color:#fff;padding:8px 10px;text-align:left;font-size:10px}.bullets{list-style:none;padding:0;margin:6px 0}.bullets li{margin:8px 0;line-height:1.45;padding-left:15px;position:relative}.bullets.check li:before{content:"✓";position:absolute;left:0;font-weight:900;color:${t.primary}}.bullets.dot li:before{content:"•";position:absolute;left:2px;color:${t.primary}}.footer{text-align:center;margin-top:18px;color:${t.primary};font-weight:900;font-size:11px}.footer-note{text-align:center;margin-top:10px;color:#796c7c;font-size:8.5px}.invalid-share{max-width:680px;margin:80px auto;background:#fff;border-radius:18px;padding:34px;text-align:center;box-shadow:0 16px 55px rgba(17,24,39,.12)}@media(max-width:820px){.sheet{margin:0;border-radius:0;box-shadow:none;padding:18px}.client-toolbar{position:static}.options,.summary{font-size:9px}.options th,.options td,.summary th,.summary td{padding:7px 5px}}@media print{body{background:#fff;font-size:10.5px}.client-toolbar{display:none!important}.sheet{max-width:none;margin:0;padding:0;box-shadow:none;border-radius:0}.title{font-size:24px}.section-title{margin-top:10px}.logo{height:66px}.options td,.summary td,.info td,.info th{padding:7px 9px}}
+  </style></head><body>${toolbar}<main class="sheet"><div class="logo-wrap"><img class="logo" src="${logo}" alt="${escapeHTML(brandLabel(q.brand))}"></div><h1 class="title">COTIZACIÓN</h1><div class="subtitle">${escapeHTML(q.destination.toUpperCase())} · ${escapeHTML(quoteDateRangeUpper(q))}</div><table class="info"><tr><th>Destino</th><td>${escapeHTML(q.destination)}</td></tr><tr><th>Estancia</th><td>${escapeHTML(quoteStayText(q))}</td></tr><tr><th>Pasajeros</th><td>${escapeHTML(q.passengers)}</td></tr><tr><th>Habitaciones</th><td>${escapeHTML(q.rooms)}</td></tr></table><div class="section-title">OPCIONES DE HOSPEDAJE</div><table class="options"><thead><tr><th>HOTEL</th><th>PLAN</th><th>${escapeHTML(totalHead)}</th><th>APARTADO</th></tr></thead><tbody>${optionsRows}</tbody></table>${flightsHTML}${servicesHTML}<div class="section-title">INCLUYE</div><ul class="bullets check">${q.includes.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Servicios de acuerdo con la opción seleccionada.</li>"}</ul><div class="section-title">CONDICIONES DE RESERVACIÓN</div><ul class="bullets dot">${conditions.map(x => `<li>${escapeHTML(x)}</li>`).join("") || "<li>Precios sujetos a disponibilidad al momento de reservar.</li>"}</ul><div class="section-title">RESUMEN DE INVERSIÓN</div><table class="summary"><thead><tr><th>OPCIÓN</th><th>TOTAL</th><th>APARTADO</th><th>SALDO</th></tr></thead><tbody>${summaryRows}</tbody></table><div class="footer">${escapeHTML(brandFooter)}</div><div class="footer-note">Cotización elaborada el ${escapeHTML(quoteDateLong.format(created))} · Precios sujetos a disponibilidad al momento de reservar.<br>${escapeHTML(q.folio)}</div></main></body></html>`;
 }
 
 async function printQuote(id) {
@@ -766,6 +875,7 @@ function bindQuoteModule() {
   $("#quoteStatusFilter")?.addEventListener("change", renderQuotes);
   $("#quoteForm")?.addEventListener("submit", saveQuoteFromForm);
   $("#addQuoteOptionBtn")?.addEventListener("click", () => { syncQuoteOptionDraft(); if (quoteOptionsDraft.length >= MAX_QUOTE_OPTIONS) return; quoteOptionsDraft.push(blankQuoteOption()); renderQuoteOptionsEditor(quoteOptionsDraft); });
+  $("#addQuoteServiceBtn")?.addEventListener("click", () => { syncQuoteServicesDraft(); quoteServicesDraft.push(blankQuoteService()); renderQuoteServicesEditor(quoteServicesDraft); });
   $("#quoteStart")?.addEventListener("change", () => { const start = $("#quoteStart").value; $("#quoteEnd").min = start || ""; if (start && (!$("#quoteEnd").value || $("#quoteEnd").value < start)) $("#quoteEnd").value = start; });
   $("#quoteBrand")?.addEventListener("change", () => {
     $("#quoteCrmLeadId").value = "";
@@ -807,3 +917,115 @@ const publicQuoteId = quotePublicParams.get("quote");
 const publicQuoteToken = quotePublicParams.get("token");
 if (publicQuoteId && publicQuoteToken) renderSharedQuotePage(publicQuoteId, publicQuoteToken);
 else { bindQuoteModule(); hydrateQuotes(); }
+
+// Cobros directos de cotizaciones aceptadas: independientes de salidas y bookings.
+let quotePaymentRows = [];
+async function refreshQuotePayments() {
+  if (!quotesSupabase) return;
+  const {data,error} = await quotesSupabase.from('travelops_quote_payments').select('*').order('created_at',{ascending:true});
+  if (error) { console.warn('Cobros de cotizaciones (ver SQL_COTIZACIONES_PAGOS.sql)',error); return; }
+  quotePaymentRows = data || [];
+  renderQuotes(); renderPayments();
+}
+function quotePaymentsFor(q) { return quotePaymentRows.filter(p => p.quote_id === q.id); }
+function quotePaymentInfo(q) {
+  const rows = quotePaymentsFor(q);
+  const opt = q.options.find(o => o.id === rows[0]?.option_id);
+  const total = rows.length ? Number(rows[0].total_amount) : quoteBestTotal(q);
+  const paid = rows.reduce((n,p)=>n+Number(p.amount),0);
+  return {rows,opt,total,paid,balance:Math.max(0,total-paid)};
+}
+function quotePaymentActions(q) {
+  const info = quotePaymentInfo(q);
+  return `<div class="quote-card-actions"><button class="primary-btn compact" type="button" data-quote-collect="${q.id}">+ Registrar pago</button><small>${info.rows.length ? `Pagado ${quoteMoney.format(info.paid)} · Saldo ${quoteMoney.format(info.balance)}` : 'Sin abonos registrados'}</small></div>`;
+}
+function wireQuoteCollectButtons(root=document) {
+  $$('[data-quote-collect]',root).forEach(btn=>btn.addEventListener('click',()=>openQuotePaymentModal(btn.dataset.quoteCollect)));
+  $$('[data-quote-receipt]',root).forEach(btn=>btn.addEventListener('click',()=>printQuotePaymentReceipt(btn.dataset.quoteReceipt)));
+  $$('[data-quote-wa]',root).forEach(btn=>btn.addEventListener('click',()=>shareQuotePayment(btn.dataset.quoteWa)));
+}
+function renderQuotePaymentRows() {
+  const rows = quotesStore.filter(q=>q.status==='aceptada' && (state.brand==='all'||state.brand===q.brand));
+  const html = rows.map(q=>{
+    const {rows:movements,total,paid,balance} = quotePaymentInfo(q);
+    const last=movements.at(-1);
+    const actions=`<button class="small-btn" data-quote-collect="${q.id}">+ Abono</button> ${last?`<button class="small-btn" data-quote-receipt="${last.id}">Último recibo</button> <button class="small-btn" data-quote-wa="${last.id}">Enviar recibo</button>`:''}`;
+    return `<tr><td>${escapeHTML(q.destination)}<small style="display:block">${escapeHTML(q.folio)} · Cotización</small></td><td>${escapeHTML(q.customer)}</td><td>${quoteMoney.format(total)}</td><td>${quoteMoney.format(paid)}</td><td>${quoteMoney.format(balance)}</td><td>${last?escapeHTML(last.paid_on):'—'}</td><td>${actions}</td></tr>`;
+  }).join('');
+  const table=$('#paymentsTable');
+  if (!table) return;
+  if (html) { if (table.querySelector('td[colspan="7"]')) table.innerHTML=''; table.insertAdjacentHTML('beforeend',html); }
+  wireQuoteCollectButtons(table);
+}
+function openQuotePaymentModal(id) {
+  const q=quotesStore.find(item=>item.id===id);
+  if (!q||q.status!=='aceptada') return alert('La cotización debe estar aceptada.');
+  if (!quotesSupabase) return alert('Debes iniciar sesión con Supabase para registrar pagos.');
+  const info=quotePaymentInfo(q);
+  $('#quotePaymentForm').dataset.quoteId=q.id;
+  $('#quotePaymentSummary').textContent=`${q.folio} · ${q.customer} · Saldo: ${quoteMoney.format(info.balance)}`;
+  $('#quotePaymentOption').innerHTML=q.options.filter(o=>Number(o.total)>0).map(o=>`<option value="${o.id}">${escapeHTML(o.hotel)} — ${quoteMoney.format(o.total)}</option>`).join('');
+  if(info.rows.length) {$('#quotePaymentOption').value=info.rows[0].option_id;$('#quotePaymentOption').disabled=true;}
+  else $('#quotePaymentOption').disabled=false;
+  $('#quotePaymentAmount').value='';
+  $('#quotePaymentDate').value=new Date().toLocaleDateString('en-CA');
+  $('#quotePaymentReference').value=''; $('#quotePaymentNotes').value='';
+  if(!info.balance && info.rows.length) return alert('Esta cotización ya está liquidada.');
+  $('#quotePaymentModal').showModal();
+}
+async function saveQuotePayment(e) {
+  e.preventDefault();
+  const button=e.currentTarget.querySelector('[type="submit"]'); if(button.disabled) return;
+  const q=quotesStore.find(item=>item.id===e.currentTarget.dataset.quoteId);
+  if(!q||!quotesSupabase)return;
+  const opt=q.options.find(o=>o.id===$('#quotePaymentOption').value);
+  const info=quotePaymentInfo(q);
+  const amount=Number($('#quotePaymentAmount').value);
+  if(!opt||!Number.isFinite(amount)||amount<=0)return alert('Selecciona una opción y un importe válido.');
+  const total=info.rows.length?info.total:Number(opt.total);
+  if(amount>total-info.paid+0.001)return alert('El abono supera el saldo pendiente.');
+  button.disabled=true;
+  try {
+    const {data,error}=await quotesSupabase.from('travelops_quote_payments').insert({quote_id:q.id,option_id:opt.id,total_amount:total,amount,paid_on:$('#quotePaymentDate').value,method:$('#quotePaymentMethod').value,reference:$('#quotePaymentReference').value.trim(),notes:$('#quotePaymentNotes').value.trim(),created_by:state.user.id}).select().single();
+    if(error)throw error;
+    quotePaymentRows.push(data);
+    $('#quotePaymentModal').close(); renderQuotes();renderPayments();
+    alert('Pago guardado. Folio: '+data.receipt_number+'\nPuedes imprimir el recibo desde Pagos.');
+  }catch(err){alert('No se pudo guardar el pago: '+err.message);}
+  finally{button.disabled=false;}
+}
+function findQuotePayment(id){const payment=quotePaymentRows.find(p=>p.id===id);return payment?{payment,q:quotesStore.find(q=>q.id===payment.quote_id)}:null;}
+function quoteReceiptMessage(q,p){
+  const info=quotePaymentInfo(q);
+  const chronological=info.rows.filter(r=>r.created_at < p.created_at || (r.created_at === p.created_at && r.id <= p.id));
+  const paid=chronological.reduce((n,r)=>n+Number(r.amount),0);
+  return `Recibo ${p.receipt_number}\n${brandLabel(q.brand)}\nCliente: ${q.customer}\nCotización: ${q.folio}\nDestino: ${q.destination}\nAbono: ${quoteMoney.format(p.amount)}\nFecha: ${p.paid_on}\nSaldo al emitir: ${quoteMoney.format(Math.max(0,Number(p.total_amount)-paid))}`;
+}
+async function shareQuotePayment(id){
+  const x=findQuotePayment(id);if(!x||!x.q)return;
+  const {q,payment:p}=x;
+  const message=quoteReceiptMessage(q,p);
+  const throughPayment=quotePaymentsFor(q).filter(r=>r.created_at<p.created_at||(r.created_at===p.created_at&&r.id<=p.id)).reduce((n,r)=>n+Number(r.amount||0),0);
+  const file=await createTravelReceiptPDF({folio:p.receipt_number,brand:q.brand,customer:q.customer,destination:q.destination,concept:'Cotización '+q.folio,paidOn:p.paid_on,amount:Number(p.amount),total:Number(p.total_amount),paid:throughPayment,method:p.method,reference:p.reference,notes:p.notes});
+  if(!file)return; // Error de generación: no afirmar que se envió.
+  await shareTravelReceiptFile(file,message);
+}
+function printQuotePaymentReceipt(id){
+  const x=findQuotePayment(id);if(!x||!x.q)return;
+  const {q,payment:p}=x;
+  const win=window.open('','_blank','width=850,height=730');if(!win)return alert('Permite las ventanas emergentes para imprimir el recibo.');
+  const logo=new URL(brandAsset(q.brand),location.href).href;
+  const message=quoteReceiptMessage(q,p).split('\n').map(line=>`<p>${escapeHTML(line)}</p>`).join('');
+  win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapeHTML(p.receipt_number)}</title><style>body{font:16px Arial;color:#172033;max-width:720px;margin:45px auto;padding:20px}header{display:flex;gap:20px;align-items:center;border-bottom:2px solid #172033;padding-bottom:24px}img{width:90px;max-height:90px;object-fit:contain}h1{font-size:25px}p{padding:9px;border-bottom:1px solid #eee}small{color:#666}</style></head><body><header><img src="${logo}"><div><h1>Recibo de pago</h1><strong>${escapeHTML(brandLabel(q.brand))}</strong></div></header>${message}<small>Documento de control de pagos. No sustituye un CFDI.</small></body></html>`);
+  win.document.close();setTimeout(()=>{win.focus();win.print()},350);
+}
+$('#quotePaymentForm')?.addEventListener('submit',saveQuotePayment);
+// Se ejecuta tras la carga inicial y cada regreso a Cotizaciones.
+const originalRenderQuotes=renderQuotes;
+renderQuotes=function(){originalRenderQuotes();const cards=$('#quoteCards');if(cards){quotesStore.filter(q=>q.status==='aceptada').forEach(q=>{const card=cards.querySelector(`[data-quote-edit="${q.id}"]`)?.closest('.quote-card');if(card&&!card.querySelector('[data-quote-collect]'))card.insertAdjacentHTML('beforeend',quotePaymentActions(q));});wireQuoteCollectButtons(cards);}};
+const originalRenderPayments=renderPayments;
+renderPayments=function(){originalRenderPayments();renderQuotePaymentRows();};
+const originalHydrateQuotes=hydrateQuotes;
+hydrateQuotes=async function(){await originalHydrateQuotes();await refreshQuotePayments();};
+// La primera hidratación fue llamada antes de declarar estos complementos.
+refreshQuotePayments();

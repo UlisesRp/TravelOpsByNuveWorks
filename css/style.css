@@ -149,3 +149,17 @@ input:focus,select:focus,textarea:focus{border-color:#aeb5c2;box-shadow:0 0 0 3p
 .quote-manual-note span{font-size:10px;color:var(--muted);line-height:1.45}
 @media(max-width:980px){.quote-option-fields{grid-template-columns:1fr 1fr}.quote-option-fields label:nth-child(n+3){grid-column:auto}}
 @media(max-width:760px){.quote-manual-note{flex-direction:column}.quote-option-fields{grid-template-columns:1fr}}
+
+/* Travel Ops v2 · servicios adicionales manuales */
+.quote-services-box{border:1px solid var(--border);border-radius:16px;background:#fbfcfe;padding:16px;display:grid;gap:14px}
+.quote-services-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.quote-services-head>div{display:grid;gap:4px}
+.quote-services-head small{font-size:10px;color:var(--muted);line-height:1.45}
+.quote-services-editor{display:grid;gap:10px}
+.quote-service-editor{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px}
+.quote-service-fields{display:grid;grid-template-columns:.85fr 1.4fr .8fr;gap:10px}
+.quote-service-fields label{display:grid;gap:5px}
+.quote-service-fields label span{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase}
+.quote-service-fields .wide{grid-column:span 2}
+.quote-services-empty{padding:12px;border:1px dashed #cbd5e1;border-radius:10px;background:#fff;color:var(--muted);font-size:10px}
+@media(max-width:800px){.quote-services-head{flex-direction:column}.quote-services-head .ghost-btn{width:100%}.quote-service-fields{grid-template-columns:1fr}.quote-service-fields .wide{grid-column:auto}}
