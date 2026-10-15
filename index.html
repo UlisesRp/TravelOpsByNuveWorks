@@ -48,6 +48,7 @@
           <button class="nav-item" data-view="departures">✈ <span>Salidas</span></button>
           <button class="nav-item" data-view="crm">◎ <span>CRM Global</span></button>
           <button class="nav-item" data-view="quotes">▧ <span>Cotizaciones</span></button>
+          <button class="nav-item" data-view="reservations">▣ <span>Reservas</span></button>
           <button class="nav-item pink-only-nav" data-view="agencies"><img class="nav-mini-logo" src="assets/pink-logo.png" alt="" /><span>Agencias Pink</span></button>
           <button class="nav-item" data-view="payments">$ <span>Pagos</span></button>
           <button class="nav-item" data-view="billing">▤ <span>Facturación</span></button>
@@ -106,7 +107,25 @@
 
         <section class="view" id="crmView">
           <div class="section-head"><div><span class="eyebrow">VISIBLE PARA TODO EL EQUIPO</span><h3>CRM Global</h3></div><button class="primary-btn compact" id="newLeadBtn" type="button">+ Nuevo prospecto</button></div>
+          <section class="panel" style="padding:18px;margin-bottom:20px">
+            <div class="section-head"><div><span class="eyebrow">TRAVEL OPS V3 · CRM COMPARTIDO</span><h3>Clientes</h3><p class="muted">Cliente directo o agencia, sin separar los registros por marca.</p></div><button class="primary-btn compact" type="button" id="v3NewClient">+ Nuevo cliente</button></div>
+            <p class="muted" id="v3ClientMessage" role="status">Cargando clientes...</p>
+            <div id="v3ClientList"></div>
+          </section>
+          <div class="section-head"><div><span class="eyebrow">SEGUIMIENTO ANTERIOR</span><h3>Prospectos</h3></div></div>
           <div class="pipeline" id="crmPipeline"></div>
+        </section>
+
+        <section class="view" id="reservationsView">
+          <div class="section-head"><div><span class="eyebrow">TRAVEL OPS V3 · EXPEDIENTES</span><h3>Reservas</h3><p class="muted">Reservas creadas desde cotizaciones aceptadas. Las salidas grupales se gestionan en Salidas.</p></div></div>
+          <div class="panel" style="padding:18px;margin-bottom:18px">
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+              <strong id="v3ReservationCount">Reservas V3</strong>
+              <div style="display:flex;gap:8px;flex-wrap:wrap"><input class="search-input" id="v3ReservationSearch" placeholder="Buscar folio, cliente, destino..." aria-label="Buscar reservas" /><select id="v3ReservationStatus" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="por_confirmar">Por confirmar</option><option value="confirmada">Confirmada</option><option value="cancelada">Cancelada</option></select><button class="ghost-btn compact" id="v3ReservationRefresh" type="button">Actualizar</button></div>
+            </div>
+            <p id="v3ReservationMessage" class="muted" role="status" style="margin:12px 0"></p>
+            <div id="v3ReservationList" style="display:grid;gap:12px"></div>
+          </div>
         </section>
 
         <section class="view" id="quotesView">
@@ -190,6 +209,25 @@
       </form>
     </dialog>
 
+    <dialog id="v3ClientModal" class="modal">
+      <form id="v3ClientForm">
+        <div class="modal-head"><div><span class="eyebrow">TRAVEL OPS V3</span><h3 id="v3ClientModalTitle">Nuevo cliente</h3></div><button class="icon-btn square" type="button" id="v3ClientClose">×</button></div>
+        <div class="form-grid">
+          <label><span>Tipo de cliente</span><select name="client_type" required><option value="directo">Cliente directo</option><option value="agencia">Agencia</option></select></label>
+          <label><span>Nombre o razón social *</span><input name="name" maxlength="200" required /></label>
+          <label><span>Nombre comercial</span><input name="commercial_name" maxlength="200" /></label>
+          <label><span>Persona de contacto</span><input name="contact_name" maxlength="200" /></label>
+          <label><span>Teléfono</span><input name="phone" type="tel" /></label>
+          <label><span>WhatsApp</span><input name="whatsapp" type="tel" /></label>
+          <label><span>Correo</span><input name="email" type="email" /></label>
+          <label><span>RFC (opcional)</span><input name="rfc" maxlength="13" /></label>
+          <label class="full"><span>Domicilio fiscal (opcional)</span><input name="fiscal_address" /></label>
+          <label class="full"><span>Notas</span><textarea name="notes" rows="3"></textarea></label>
+        </div>
+        <p id="v3ClientFormError" role="alert" style="color:#b91c1c"></p>
+        <div class="modal-actions"><button class="ghost-btn" id="v3ClientCancel" type="button">Cancelar</button><button class="primary-btn" id="v3ClientSave" type="submit">Guardar cliente</button></div>
+      </form>
+    </dialog>
     <dialog id="leadModal" class="modal">
       <form method="dialog" id="leadForm">
         <div class="modal-head"><div><span class="eyebrow">CRM GLOBAL</span><h3>Nuevo prospecto</h3></div><button class="icon-btn square" type="button" data-close="leadModal">×</button></div>
@@ -241,12 +279,23 @@
         <div class="modal-head"><div><span class="eyebrow">COTIZACIÓN</span><h3 id="quoteModalTitle">Nueva cotización</h3></div><button class="icon-btn square" type="button" data-close="quoteModal">×</button></div>
         <div class="form-grid quote-form-grid">
           <label><span>Marca</span><select id="quoteBrand" required><option value="pink">Pink Sky Travel</option><option value="velora">Velora Travel</option></select></label>
+          <label class="full"><span>Cliente del CRM V3 (Pink + Velora)</span><select id="quoteV3ClientId"><option value="">Sin vincular (cotización anterior / captura manual)</option></select><small>Selecciona un cliente guardado en CRM Global para completar automáticamente sus datos.</small></label>
           <label><span>Agencia / cliente</span><input id="quoteCustomer" list="quoteCustomerList" required autocomplete="off" placeholder="Selecciona CRM, agencia o cliente..." /><datalist id="quoteCustomerList"></datalist></label>
           <label><span>WhatsApp / teléfono</span><input id="quoteCustomerPhone" placeholder="Se llena desde CRM o puedes capturarlo" /></label>
           <label><span>Destino</span><input id="quoteDestination" required placeholder="Ej. Mazatlán, Sinaloa" /></label>
           <label><span>Fecha de salida</span><input id="quoteStart" type="date" required /></label>
           <label><span>Fecha de regreso</span><input id="quoteEnd" type="date" required /></label>
-          <label class="full"><span>Pasajeros</span><input id="quotePassengers" required placeholder="Ej. 4 adultos + 1 menor (1 año)" /></label>
+          <div class="full" id="quotePassengerEditor" style="border:1px solid #dfe4eb;border-radius:12px;padding:14px;display:grid;gap:10px">
+            <strong>Pasajeros</strong>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+              <label><span>Adultos</span><input id="quoteAdultsCount" type="number" min="0" max="100" step="1" value="2" required /></label>
+              <label><span>Menores</span><input id="quoteMinorsCount" type="number" min="0" max="100" step="1" value="0" required /></label>
+            </div>
+            <div id="quoteMinorAges" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
+            <small id="quotePassengersSummary">2 adultos · 0 menores · 2 pasajeros</small>
+            <input type="hidden" id="quotePassengers" />
+            <small id="quotePassengersLegacyNote" hidden>Esta cotización es anterior a V3. Confirma las cantidades para actualizar los pasajeros.</small>
+          </div>
           <label class="full"><span>Habitaciones</span><input id="quoteRooms" required placeholder="Ej. 2 habitaciones: 1 doble con menor de 1 año + 1 doble" /></label>
           <label><span>Fecha límite para liquidar</span><input id="quoteLiquidationDate" type="date" /></label>
           <label><span>Comisión a declarar %</span><input id="quoteDeclaredCommissionPercent" type="number" min="0" max="100" step="0.01" value="0" /></label>
@@ -402,7 +451,9 @@ Plan todo incluido: desayunos, comidas, cenas, snacks y bebidas ilimitadas."></t
   <script src="js/supabase.js"></script>
   <script src="js/app.js"></script>
   <script src="js/receipt-share.js"></script>
+  <script src="js/v3-clients.js"></script>
   <script src="js/quotes.js"></script>
   <script src="js/calendar-events.js"></script>
+  <script src="js/v3-reservations.js"></script>
 </body>
 </html>

@@ -17,6 +17,7 @@ let quoteOptionsDraft = [];
 let quoteServicesDraft = [];
 let quoteProfiles = new Map();
 let quoteContacts = [];
+let quoteV3Clients = [];
 
 const quoteMoney = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 2 });
 const quoteDateLong = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -74,12 +75,16 @@ function normalizeQuote(q) {
     folio: q.folio || "SIN FOLIO",
     brand: q.brand || "pink",
     crmLeadId: q.crmLeadId || q.crm_lead_id || "",
+    v3ClientId: q.v3ClientId || q.v3_client_id || "",
     customer: q.customer || q.customer_name || "",
     customerPhone: q.customerPhone || q.customer_phone || "",
     destination: q.destination || "",
     start: q.start || q.start_date || "",
     end: q.end || q.end_date || "",
     passengers: q.passengers || q.passengers_text || "",
+    adultsCount: q.adultsCount ?? q.adults_count ?? null,
+    minorsCount: q.minorsCount ?? q.minors_count ?? null,
+    minorAges: Array.isArray(q.minorAges ?? q.minor_ages) ? [...(q.minorAges ?? q.minor_ages)] : [],
     rooms: q.rooms || q.rooms_text || "",
     liquidationDate: q.liquidationDate || q.liquidation_date || "",
     declaredCommissionPercent: Number(q.declaredCommissionPercent ?? q.declared_commission_percent ?? 0),
@@ -146,7 +151,8 @@ async function hydrateQuotes() {
     { data: agencies, error: ae },
     { data: bookings, error: be },
     { data: departures, error: de },
-    { data: crmLeads, error: ce }
+    { data: crmLeads, error: ce },
+    { data: v3Clients, error: v3e }
   ] = await Promise.all([
     quotesSupabase.from("profiles").select("id,full_name,avatar_data_url"),
     quotesSupabase.from(QUOTE_TABLE).select("*").order("created_at", { ascending: false }),
@@ -156,7 +162,8 @@ async function hydrateQuotes() {
     quotesSupabase.from("agencies").select("id,name").order("name"),
     quotesSupabase.from("bookings").select("id,departure_id,customer_name,agency_id"),
     quotesSupabase.from("departures").select("id,brand"),
-    quotesSupabase.from("crm_leads").select("id,name,phone,brand,interest,status,notes").order("created_at", { ascending: false })
+    quotesSupabase.from("crm_leads").select("id,name,phone,brand,interest,status,notes").order("created_at", { ascending: false }),
+    quotesSupabase.from("v3_clients").select("id,name,client_type,commercial_name,phone,whatsapp,email").order("name")
   ]);
 
   if (qe || oe || fe || se) {
@@ -182,7 +189,10 @@ async function hydrateQuotes() {
     })
   );
 
+  if (v3e) console.warn("CRM V3 no disponible en cotizaciones:", v3e);
+  quoteV3Clients = v3e ? [] : (v3Clients || []);
   buildQuoteContacts(agencies || [], bookings || [], departures || [], crmLeads || []);
+  renderQuoteV3ClientList();
   renderQuoteCustomerList();
   renderQuotes();
   void refreshQuotePayments();
@@ -246,6 +256,24 @@ function buildQuoteContactsFromState() {
   );
 }
 
+function renderQuoteV3ClientList() {
+  const select = $("#quoteV3ClientId");
+  if (!select) return;
+  const selected = select.value;
+  select.innerHTML = '<option value="">Sin vincular (cotización anterior / captura manual)</option>' +
+    quoteV3Clients.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name)} · ${c.client_type === "agencia" ? "Agencia" : "Cliente directo"}</option>`).join("");
+  if (quoteV3Clients.some(c => c.id === selected)) select.value = selected;
+}
+function applyQuoteV3ClientSelection() {
+  const id = $("#quoteV3ClientId")?.value;
+  if (!id) return;
+  const c = quoteV3Clients.find(x => x.id === id);
+  if (!c) return;
+  $("#quoteCustomer").value = c.name;
+  $("#quoteCustomerPhone").value = c.whatsapp || c.phone || "";
+  $("#quoteCrmLeadId").value = "";
+}
+
 function renderQuoteCustomerList() {
   const list = $("#quoteCustomerList");
   if (!list) return;
@@ -301,6 +329,8 @@ function renderQuotes() {
   $$('[data-quote-share]', $("#quoteCards")).forEach(b => b.addEventListener("click", () => shareQuote(b.dataset.quoteShare)));
   $$('[data-quote-duplicate]', $("#quoteCards")).forEach(b => b.addEventListener("click", () => duplicateQuote(b.dataset.quoteDuplicate)));
   $$('[data-quote-delete]', $("#quoteCards")).forEach(b => b.addEventListener("click", () => deleteQuote(b.dataset.quoteDelete)));
+  $$('[data-v3-convert]', $("#quoteCards")).forEach(b => b.addEventListener("click", () => openV3Conversion(b.dataset.v3Convert)));
+  $$('[data-v3-passengers]', $("#quoteCards")).forEach(b => b.addEventListener("click", () => openV3Passengers(b.dataset.v3Passengers)));
 }
 
 function quoteCardHTML(q) {
@@ -311,8 +341,179 @@ function quoteCardHTML(q) {
     <div class="quote-card-meta"><span>${q.start ? dateFmt.format(parseDate(q.start)) : "—"} → ${q.end ? dateFmt.format(parseDate(q.end)) : "—"}</span><span>${q.options.length} ${q.options.length === 1 ? "opción" : "opciones"}</span></div>
     <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(o.total)}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
     <div class="quote-card-bottom"><div><span class="status-chip ${quoteStatusClass(q.status)}">${quoteStatusLabel(q.status)}</span>${best ? `<strong>Desde ${quoteMoney.format(best)}</strong>` : ""}</div><small>Creó ${escapeHTML(creator.name)} · ${quoteDateTime.format(new Date(q.createdAt))}</small></div>
-    <div class="quote-card-actions"><button class="small-btn" data-quote-share="${q.id}">Enviar al cliente</button><button class="small-btn" data-quote-print="${q.id}">Imprimir / PDF</button><button class="small-btn" data-quote-edit="${q.id}">Editar</button><button class="small-btn" data-quote-duplicate="${q.id}">Duplicar</button><button class="small-btn danger" data-quote-delete="${q.id}">Borrar</button></div>
+    <div class="quote-card-actions"><button class="small-btn" data-quote-share="${q.id}">Enviar al cliente</button><button class="small-btn" data-quote-print="${q.id}">Imprimir / PDF</button><button class="small-btn" data-quote-edit="${q.id}">Editar</button><button class="small-btn" data-quote-duplicate="${q.id}">Duplicar</button><button class="small-btn danger" data-quote-delete="${q.id}">Borrar</button>${["enviada", "aceptada"].includes(q.status) ? `<button class="primary-btn" type="button" data-v3-convert="${q.id}">Convertir a reserva</button>` : ""}${["enviada", "aceptada"].includes(q.status) ? `<button class="small-btn" type="button" data-v3-passengers="${q.id}">Pasajeros de reserva</button>` : ""}</div>
   </article>`;
+}
+
+// V3: Conversion explicita a reserva; no afecta pagos ni la salida grupal.
+function ensureV3ConversionDialog() {
+  let modal = document.getElementById("v3ConversionModal");
+  if (modal) return modal;
+  modal = document.createElement("dialog");
+  modal.id = "v3ConversionModal";
+  modal.className = "modal";
+  modal.innerHTML = `<form id="v3ConversionForm" style="padding:24px;min-width:min(550px,calc(100vw - 48px))">
+    <div class="modal-head"><div><span class="eyebrow">RESERVA V3</span><h3>Convertir cotización</h3></div><button class="icon-btn square" type="button" id="v3ConversionClose">×</button></div>
+    <p id="v3ConversionSummary" class="muted"></p>
+    <label style="display:block;margin:16px 0"><span>Opción contratada</span><select id="v3ConversionOption" required style="width:100%;padding:12px"></select></label>
+    <label style="display:flex;gap:10px;align-items:start;font-size:13px;margin:16px 0"><input type="checkbox" id="v3ConversionAccepted" required style="margin-top:3px"><span>Confirmo que el cliente seleccionó esta opción y autorizó iniciar la reserva. La firma de términos se solicitará después.</span></label>
+    <div id="v3ConversionMessage" role="status" style="margin-bottom:12px;color:#9a3412"></div>
+    <div class="modal-actions"><button class="ghost-btn" type="button" id="v3ConversionCancel">Cancelar</button><button class="primary-btn" id="v3ConversionSave" type="submit">Crear reserva por confirmar</button></div>
+  </form>`;
+  document.body.appendChild(modal);
+  modal.querySelector("#v3ConversionClose").onclick = () => modal.close();
+  modal.querySelector("#v3ConversionCancel").onclick = () => modal.close();
+  modal.querySelector("#v3ConversionForm").addEventListener("submit", saveV3ConvertedReservation);
+  return modal;
+}
+
+async function openV3Conversion(id) {
+  const q = quotesStore.find(row => row.id === id);
+  if (!q || !["enviada", "aceptada"].includes(q.status)) return;
+  if (!quotesSupabase) { alert("Para convertir una cotización necesitas conexión con Supabase."); return; }
+  const { data: existing, error } = await quotesSupabase.from("reservations")
+    .select("id,code").eq("v3_quote_id", q.id).limit(1);
+  if (error) { alert(`No se pudo revisar si ya existe la reserva: ${error.message}`); return; }
+  if (existing?.length) { alert(`Esta cotización ya tiene una reserva: ${existing[0].code}. No se creó otra.`); return; }
+  if (!q.v3ClientId) { alert("Primero vincula esta cotización con un cliente del CRM V3."); return; }
+  if (!q.options?.length) { alert("Esta cotización no contiene opciones de hotel."); return; }
+  const modal = ensureV3ConversionDialog();
+  modal.dataset.quoteId = q.id;
+  modal.querySelector("#v3ConversionSummary").textContent = `${q.folio} · ${q.customer} · ${q.destination}`;
+  modal.querySelector("#v3ConversionOption").innerHTML = q.options.map(o => `<option value="${escapeHTML(o.id)}">${escapeHTML(o.hotel)} · ${escapeHTML(o.plan)} · ${quoteMoney.format(o.total)}</option>`).join("");
+  modal.querySelector("#v3ConversionAccepted").checked = false;
+  modal.querySelector("#v3ConversionMessage").textContent = "";
+  modal.showModal();
+}
+
+async function saveV3ConvertedReservation(event) {
+  event.preventDefault();
+  const modal = document.getElementById("v3ConversionModal");
+  const q = quotesStore.find(row => row.id === modal?.dataset.quoteId);
+  if (!q || !quotesSupabase) return;
+  const option = q.options.find(o => o.id === modal.querySelector("#v3ConversionOption").value);
+  const message = modal.querySelector("#v3ConversionMessage");
+  const btn = modal.querySelector("#v3ConversionSave");
+  if (!option || !modal.querySelector("#v3ConversionAccepted").checked) return;
+  const adults = Number(q.adultsCount), minors = Number(q.minorsCount);
+  if (!Number.isInteger(adults) || adults < 1 || !Number.isInteger(minors) || minors < 0) {
+    message.textContent = "Confirma primero los adultos y menores en la cotización (mínimo un adulto)."; return;
+  }
+  if (!q.start || !q.end || !q.v3ClientId) { message.textContent = "Faltan fechas o cliente del CRM V3."; return; }
+  btn.disabled = true;
+  message.textContent = "Guardando reserva…";
+  try {
+    const { data: prior, error: lookupError } = await quotesSupabase.from("reservations").select("id,code").eq("v3_quote_id", q.id).limit(1);
+    if (lookupError) throw lookupError;
+    if (prior?.length) throw new Error(`Ya existe la reserva ${prior[0].code}.`);
+    const actor = currentActor();
+    const code = `RES-V3-${q.brand === "pink" ? "PINK" : "VEL"}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const snapshot = { hotel: option.hotel, plan: option.plan, total: option.total, flights: q.flights, services: q.services, rooms: q.rooms, minorAges: q.minorAges };
+    const payload = {
+      code, brand: q.brand, v3_quote_id: q.id, v3_client_id: q.v3ClientId,
+      v3_option_id: option.id, v3_services_snapshot: snapshot,
+      client_name: q.customer, destination: q.destination,
+      start_date: q.start, end_date: q.end,
+      adults, minors, hotel_service: `${option.hotel} · ${option.plan}`,
+      total_amount: Number(option.total), status: "por_confirmar",
+      notes: `Generada desde ${q.folio}. Pendiente de confirmación, itinerario y firma.`,
+      created_by: actor.id, updated_by: actor.id
+    };
+    const { data: saved, error } = await quotesSupabase.from("reservations").insert(payload).select("id,code").single();
+    if (error) throw error;
+    modal.close();
+    alert(`Reserva ${saved.code} creada como POR CONFIRMAR. No se registró ningún pago ni firma. El expediente de pasajeros e itinerario es el siguiente módulo.`);
+  } catch (err) {
+    message.textContent = err?.message || "No se pudo guardar la reserva.";
+  } finally { btn.disabled = false; }
+}
+
+// Expediente V3 por reserva. No toca pasajeros de salidas (booking_id).
+function v3AgeAtDate(birth, date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birth || '') || !/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
+  const [by,bm,bd] = birth.split('-').map(Number), [dy,dm,dd] = date.split('-').map(Number);
+  const born = new Date(Date.UTC(by,bm-1,bd)), travel = new Date(Date.UTC(dy,dm-1,dd));
+  if (born.toISOString().slice(0,10) !== birth || travel.toISOString().slice(0,10) !== date || born > travel) return null;
+  return dy-by-((dm<bm || (dm===bm && dd<bd)) ? 1 : 0);
+}
+function ensureV3PassengerDialog() {
+  let d = document.getElementById('v3PassengersModal');
+  if (d) return d;
+  d = document.createElement('dialog'); d.id='v3PassengersModal'; d.className='modal wide';
+  d.innerHTML=`<form id="v3PassengersForm" style="padding:24px;max-width:870px;width:min(870px,calc(100vw - 48px));max-height:85vh;overflow-y:auto">
+    <div class="modal-head"><div><span class="eyebrow">RESERVA V3 · PASAJEROS</span><h3 id="v3PassengerTitle">Expediente</h3></div><button class="icon-btn square" type="button" id="v3PassengerClose">×</button></div>
+    <p id="v3PassengerInfo" class="muted"></p><div id="v3PassengerRows" style="display:grid;gap:12px;margin:16px 0"></div>
+    <p id="v3PassengerMessage" role="status" style="color:#9a3412;white-space:pre-wrap"></p>
+    <div class="modal-actions"><button type="button" class="ghost-btn" id="v3PassengerCancel">Cancelar</button><button type="submit" class="primary-btn" id="v3PassengerSave">Guardar pasajeros</button></div></form>`;
+  document.body.appendChild(d);
+  d.querySelector('#v3PassengerClose').onclick=()=>d.close();
+  d.querySelector('#v3PassengerCancel').onclick=()=>d.close();
+  d.querySelector('#v3PassengersForm').addEventListener('submit',saveV3Passengers);
+  d.querySelector('#v3PassengerRows').addEventListener('input',v3RefreshPassengerAges);
+  return d;
+}
+function v3RefreshPassengerAges() {
+  const d=document.getElementById('v3PassengersModal'); if(!d)return;
+  d.querySelectorAll('[data-v3-passenger-row]').forEach(card=>{
+    const age=v3AgeAtDate(card.querySelector('[data-birth]').value,d.dataset.travelDate);
+    card.querySelector('[data-age]').textContent= age===null ? 'Edad al viajar: —' : `Edad al viajar: ${age} años`;
+  });
+}
+async function openV3Passengers(quoteId) {
+  if(!quotesSupabase)return alert('Debes iniciar sesión para consultar pasajeros.');
+  const q=quotesStore.find(x=>x.id===quoteId);if(!q)return;
+  const {data:reservations,error:re}=await quotesSupabase.from('reservations')
+    .select('id,code,client_name,start_date,adults,minors,status').eq('v3_quote_id',quoteId).limit(1);
+  if(re)return alert('Error al buscar la reserva: '+re.message);
+  if(!reservations?.length)return alert('Primero convierte esta cotización en reserva.');
+  const r=reservations[0];
+  const {data:existing,error:pe}=await quotesSupabase.from('passengers')
+    .select('id,first_name,last_name_1,last_name_2,birth_date,created_at').eq('reservation_id',r.id).order('created_at',{ascending:true});
+  if(pe)return alert('Error al leer pasajeros: '+pe.message);
+  const expected=Number(r.adults)+Number(r.minors);
+  if((existing||[]).length>expected)return alert('La reserva tiene más pasajeros registrados que su ocupación. Hay que revisarla antes de editar.');
+  const d=ensureV3PassengerDialog();d.dataset.reservationId=r.id;d.dataset.travelDate=r.start_date;
+  d.querySelector('#v3PassengerTitle').textContent=`${r.code} · ${r.client_name}`;
+  d.querySelector('#v3PassengerInfo').textContent=`${r.adults} adultos · ${r.minors} menores · Fecha de viaje: ${r.start_date}. La edad se calcula automáticamente.`;
+  d.querySelector('#v3PassengerMessage').textContent='';
+  d.querySelector('#v3PassengerRows').innerHTML=Array.from({length:expected},(_,i)=>{
+    const p=existing?.[i]||{},minor=i>=r.adults;
+    return `<section data-v3-passenger-row data-id="${escapeHTML(p.id||'')}" data-type="${minor?'menor':'adulto'}" style="border:1px solid #dfe4eb;border-radius:12px;padding:14px">
+      <strong>${minor?'Menor '+(i-r.adults+1):'Adulto '+(i+1)}</strong>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px">
+        <label><span>Nombre(s)</span><input data-first required value="${escapeHTML(p.first_name||'')}"></label>
+        <label><span>Primer apellido</span><input data-last1 required value="${escapeHTML(p.last_name_1||'')}"></label>
+        <label><span>Segundo apellido</span><input data-last2 value="${escapeHTML(p.last_name_2||'')}"></label>
+        <label><span>Fecha de nacimiento</span><input data-birth type="date" required value="${escapeHTML(p.birth_date||'')}"></label>
+      </div><small data-age style="display:block;margin-top:8px">Edad al viajar: —</small>
+    </section>`;
+  }).join('');
+  v3RefreshPassengerAges();d.showModal();
+}
+async function saveV3Passengers(event) {
+  event.preventDefault();
+  const d=document.getElementById('v3PassengersModal'),message=d.querySelector('#v3PassengerMessage'),button=d.querySelector('#v3PassengerSave');
+  const rows=[...d.querySelectorAll('[data-v3-passenger-row]')];
+  const prepared=[];
+  for(const [i,card] of rows.entries()){
+    const first=card.querySelector('[data-first]').value.trim(),last1=card.querySelector('[data-last1]').value.trim();
+    const last2=card.querySelector('[data-last2]').value.trim(),birth=card.querySelector('[data-birth]').value;
+    const age=v3AgeAtDate(birth,d.dataset.travelDate),minor=card.dataset.type==='menor';
+    if(!first||!last1||age===null){message.textContent=`Revisa el nombre y fecha de nacimiento del pasajero ${i+1}.`;return;}
+    if((minor&&age>=18)||(!minor&&age<18)){message.textContent=`Pasajero ${i+1}: su edad al viajar (${age}) no coincide con ${minor?'menor':'adulto'}. Revisa la cotización antes de continuar.`;return;}
+    prepared.push({id:card.dataset.id||'',first_name:first,last_name_1:last1,last_name_2:last2||null,birth_date:birth});
+  }
+  button.disabled=true;message.textContent='Guardando pasajeros…';
+  try{
+    for(const p of prepared){
+      const {id,...fields}=p;
+      const query=id ? quotesSupabase.from('passengers').update(fields).eq('id',id).eq('reservation_id',d.dataset.reservationId)
+        : quotesSupabase.from('passengers').insert({...fields,reservation_id:d.dataset.reservationId});
+      const {error}=await query;if(error)throw error;
+    }
+    d.close();alert('Pasajeros guardados correctamente. Puedes volver a abrir el expediente para editarlos.');
+  }catch(err){message.textContent='No se pudieron guardar todos los pasajeros: '+(err.message||err)+'. Reabre el expediente antes de reintentar para evitar duplicados.';}
+  finally{button.disabled=false;}
 }
 
 function blankQuoteOption() {
@@ -339,6 +540,35 @@ function quoteFlightFromForm() {
 function quoteDateTimeLocalValue(value) {
   if (!value) return "";
   return String(value).replace(" ", "T").slice(0, 16);
+}
+
+// V3: sugerir las fechas del viaje en vuelos, respetando cualquier ajuste manual.
+function syncQuoteFlightDates() {
+  for (const [tripId, flightId] of [["quoteStart", "quoteFlightDepartureAt"], ["quoteEnd", "quoteFlightReturnAt"]]) {
+    const trip = document.getElementById(tripId);
+    const flight = document.getElementById(flightId);
+    if (!trip || !flight) continue;
+    const previousSuggestion = flight.dataset.suggestedDate || "";
+    const changedManually = flight.dataset.manualDate === "true";
+    if (changedManually) continue;
+    // Mantener la hora previamente capturada si la fecha había sido automática.
+    const canSync = !flight.value || (previousSuggestion && flight.value.slice(0, 10) === previousSuggestion);
+    if (!canSync) continue;
+    if (!trip.value) {
+      if (previousSuggestion) flight.value = "";
+      flight.dataset.suggestedDate = "";
+    } else {
+      const time = flight.value.slice(11, 16) || "00:00";
+      flight.value = `${trip.value}T${time}`;
+      flight.dataset.suggestedDate = trip.value;
+    }
+  }
+}
+function resetQuoteFlightDateTracking() {
+  for (const id of ["quoteFlightDepartureAt", "quoteFlightReturnAt"]) {
+    const field = document.getElementById(id);
+    if (field) { field.dataset.manualDate = "false"; field.dataset.suggestedDate = ""; }
+  }
 }
 
 function blankQuoteService() {
@@ -425,6 +655,33 @@ function syncQuoteOptionDraft() {
   return quoteOptionsDraft;
 }
 
+// V3: captura estructurada; la descripción histórica se conserva en passengers_text.
+function renderQuotePassengerEditor(ages = null) {
+  const root = $("#quoteMinorAges");
+  if (!root) return;
+  const adults = Number($("#quoteAdultsCount").value);
+  const minors = Number($("#quoteMinorsCount").value);
+  const count = Number.isInteger(minors) && minors >= 0 && minors <= 100 ? minors : 0;
+  const previous = ages ?? [...root.querySelectorAll("[data-quote-minor-age]")].map(x => x.value);
+  root.innerHTML = Array.from({ length: count }, (_, i) => `<label><span>Edad menor ${i+1} al viajar</span><input type="number" min="0" max="17" step="1" required data-quote-minor-age value="${/^(?:[0-9]|1[0-7])$/.test(String(previous[i] ?? "")) ? previous[i] : ""}" placeholder="Años" /></label>`).join("");
+  $("#quotePassengersSummary").textContent = `${adults} adulto(s) · ${minors} menor(es) · ${Number.isFinite(adults+minors) ? adults+minors : "—"} pasajeros`;
+}
+function readQuotePassengers() {
+  const adults = Number($("#quoteAdultsCount").value);
+  const minors = Number($("#quoteMinorsCount").value);
+  if (!Number.isInteger(adults) || !Number.isInteger(minors) || adults < 0 || minors < 0 || adults + minors < 1 || adults > 100 || minors > 100) {
+    alert("Indica cantidades válidas de adultos y menores (al menos un pasajero).");
+    return null;
+  }
+  const ages = [...document.querySelectorAll("#quoteMinorAges [data-quote-minor-age]")].map(input => Number(input.value));
+  if (ages.length !== minors || ages.some((age,i) => !document.querySelectorAll("#quoteMinorAges [data-quote-minor-age]")[i].value.trim() || !Number.isInteger(age) || age < 0 || age > 17)) {
+    alert("Captura la edad de cada menor al momento del viaje (0 a 17 años).");
+    return null;
+  }
+  const label = `${adults} adulto(s)${minors ? ` + ${minors} menor(es) (${ages.map(a => `${a} año(s)`).join(", ")})` : ""}`;
+  return { adults, minors, ages, label };
+}
+
 function openQuoteModal(id = "") {
   const q = id ? quotesStore.find(x => x.id === id) : null;
   $("#quoteForm").reset();
@@ -432,13 +689,19 @@ function openQuoteModal(id = "") {
   $("#quoteModalTitle").textContent = q ? "Editar cotización" : "Nueva cotización";
   $("#quoteBrand").value = q?.brand || (state.brand === "velora" ? "velora" : "pink");
   renderQuoteCustomerList();
+  renderQuoteV3ClientList();
+  $("#quoteV3ClientId").value = q?.v3ClientId || "";
   $("#quoteCrmLeadId").value = q?.crmLeadId || "";
   $("#quoteCustomer").value = q?.customer || "";
   $("#quoteCustomerPhone").value = q?.customerPhone || "";
   $("#quoteDestination").value = q?.destination || "";
   $("#quoteStart").value = q?.start || "";
   $("#quoteEnd").value = q?.end || "";
+  $("#quoteAdultsCount").value = q?.adultsCount ?? 2;
+  $("#quoteMinorsCount").value = q?.minorsCount ?? 0;
+  renderQuotePassengerEditor(q?.minorAges || []);
   $("#quotePassengers").value = q?.passengers || "";
+  $("#quotePassengersLegacyNote").hidden = !q || q.adultsCount !== null;
   $("#quoteRooms").value = q?.rooms || "";
   $("#quoteLiquidationDate").value = q?.liquidationDate || "";
   $("#quoteDeclaredCommissionPercent").value = q?.declaredCommissionPercent ?? 0;
@@ -449,6 +712,8 @@ function openQuoteModal(id = "") {
   $("#quoteFlightDepartureAt").value = quoteDateTimeLocalValue(flight.departureAt);
   $("#quoteFlightReturnText").value = flight.returnText || "";
   $("#quoteFlightReturnAt").value = quoteDateTimeLocalValue(flight.returnAt);
+  resetQuoteFlightDateTracking();
+  syncQuoteFlightDates();
   $("#quoteFlightAmount").value = Number(flight.amount || 0) || "";
   $("#quoteFlightBaggage").value = flight.baggage || "";
   $("#quoteFlightNotes").value = flight.notes || "";
@@ -479,8 +744,12 @@ async function saveQuoteFromForm(e) {
     alert("Completa hotel, plan y total final de cada opción.");
     return;
   }
+  const passengerData = readQuotePassengers();
+  if (!passengerData) return;
   const start = $("#quoteStart").value, end = $("#quoteEnd").value;
   if (end < start) { alert("La fecha de regreso no puede ser anterior a la salida."); return; }
+  const selectedV3 = quoteV3Clients.find(c => c.id === $("#quoteV3ClientId")?.value);
+  if (selectedV3 && $("#quoteCustomer").value.trim() !== selectedV3.name) { alert("El nombre ya no coincide con el cliente CRM V3. Selecciónalo otra vez o deja el vínculo vacío."); return; }
   const id = $("#quoteId").value;
   const old = id ? quotesStore.find(q => q.id === id) : null;
   const actor = currentActor();
@@ -490,11 +759,15 @@ async function saveQuoteFromForm(e) {
     folio: old?.folio || await nextQuoteFolio(brand),
     brand,
     crmLeadId: $("#quoteCrmLeadId").value || "",
+    v3ClientId: $("#quoteV3ClientId").value || "",
     customer: $("#quoteCustomer").value.trim(),
     customerPhone: $("#quoteCustomerPhone").value.trim(),
     destination: $("#quoteDestination").value.trim(),
     start, end,
-    passengers: $("#quotePassengers").value.trim(),
+    passengers: passengerData.label,
+    adultsCount: passengerData.adults,
+    minorsCount: passengerData.minors,
+    minorAges: passengerData.ages,
     rooms: $("#quoteRooms").value.trim(),
     liquidationDate: $("#quoteLiquidationDate").value,
     declaredCommissionPercent: Number($("#quoteDeclaredCommissionPercent").value || 0),
@@ -512,9 +785,9 @@ async function saveQuoteFromForm(e) {
 
   if (quotesSupabase) {
     const payload = {
-      id: quote.id, folio: quote.folio, brand: quote.brand, crm_lead_id: quote.crmLeadId || null,
+       id: quote.id, folio: quote.folio, brand: quote.brand, crm_lead_id: quote.crmLeadId || null, v3_client_id: quote.v3ClientId || null,
       customer_name: quote.customer, customer_phone: quote.customerPhone || null, destination: quote.destination,
-      start_date: quote.start, end_date: quote.end, passengers_text: quote.passengers, rooms_text: quote.rooms,
+      start_date: quote.start, end_date: quote.end, passengers_text: quote.passengers, adults_count: quote.adultsCount, minors_count: quote.minorsCount, minor_ages: quote.minorAges, rooms_text: quote.rooms,
       deposit_percent: 0, liquidation_date: quote.liquidationDate || null,
       internal_markup_percent: 0,
       declared_commission_percent: quote.declaredCommissionPercent,
@@ -647,9 +920,9 @@ async function duplicateQuote(id) {
   });
   if (quotesSupabase) {
     const { data, error } = await quotesSupabase.from(QUOTE_TABLE).insert({
-      id: copy.id, folio: copy.folio, brand: copy.brand, crm_lead_id: copy.crmLeadId || null,
+       id: copy.id, folio: copy.folio, brand: copy.brand, crm_lead_id: copy.crmLeadId || null, v3_client_id: copy.v3ClientId || null,
       customer_name: copy.customer, customer_phone: copy.customerPhone || null, destination: copy.destination,
-      start_date: copy.start, end_date: copy.end, passengers_text: copy.passengers, rooms_text: copy.rooms,
+      start_date: copy.start, end_date: copy.end, passengers_text: copy.passengers, adults_count: copy.adultsCount, minors_count: copy.minorsCount, minor_ages: copy.minorAges, rooms_text: copy.rooms,
       deposit_percent: 0, liquidation_date: copy.liquidationDate || null,
       internal_markup_percent: 0, declared_commission_percent: copy.declaredCommissionPercent, commission_percent: 0,
       status: copy.status, include_items: copy.includes, extra_conditions: copy.extraConditions,
@@ -870,21 +1143,31 @@ async function renderSharedQuotePage(quoteId, token) {
 }
 
 function bindQuoteModule() {
+  $("#quoteAdultsCount")?.addEventListener("input", () => renderQuotePassengerEditor());
+  $("#quoteMinorsCount")?.addEventListener("input", () => renderQuotePassengerEditor());
+
   $("#newQuoteBtn")?.addEventListener("click", () => openQuoteModal());
   $("#quoteSearch")?.addEventListener("input", renderQuotes);
   $("#quoteStatusFilter")?.addEventListener("change", renderQuotes);
   $("#quoteForm")?.addEventListener("submit", saveQuoteFromForm);
   $("#addQuoteOptionBtn")?.addEventListener("click", () => { syncQuoteOptionDraft(); if (quoteOptionsDraft.length >= MAX_QUOTE_OPTIONS) return; quoteOptionsDraft.push(blankQuoteOption()); renderQuoteOptionsEditor(quoteOptionsDraft); });
   $("#addQuoteServiceBtn")?.addEventListener("click", () => { syncQuoteServicesDraft(); quoteServicesDraft.push(blankQuoteService()); renderQuoteServicesEditor(quoteServicesDraft); });
-  $("#quoteStart")?.addEventListener("change", () => { const start = $("#quoteStart").value; $("#quoteEnd").min = start || ""; if (start && (!$("#quoteEnd").value || $("#quoteEnd").value < start)) $("#quoteEnd").value = start; });
+  $("#quoteStart")?.addEventListener("change", () => { const start = $("#quoteStart").value; $("#quoteEnd").min = start || ""; if (start && (!$("#quoteEnd").value || $("#quoteEnd").value < start)) $("#quoteEnd").value = start; syncQuoteFlightDates(); });
+  $("#quoteEnd")?.addEventListener("change", syncQuoteFlightDates);
+  for (const id of ["quoteFlightDepartureAt", "quoteFlightReturnAt"]) {
+    document.getElementById(id)?.addEventListener("input", e => { e.target.dataset.manualDate = "true"; });
+  }
   $("#quoteBrand")?.addEventListener("change", () => {
     $("#quoteCrmLeadId").value = "";
     $("#quoteCustomerPhone").value = "";
     renderQuoteCustomerList();
   });
+  $("#quoteV3ClientId")?.addEventListener("change", applyQuoteV3ClientSelection);
   $("#quoteCustomer")?.addEventListener("focus", renderQuoteCustomerList);
   $("#quoteCustomer")?.addEventListener("change", () => applyQuoteCustomerSelection());
   $("#quoteCustomer")?.addEventListener("input", () => {
+    const v3 = quoteV3Clients.find(c => c.id === $("#quoteV3ClientId")?.value);
+    if (v3 && $("#quoteCustomer").value.trim() !== v3.name) $("#quoteV3ClientId").value = "";
     const contact = findQuoteContactExact($("#quoteCustomer").value, $("#quoteBrand").value);
     if (contact?.source === "crm") applyQuoteCustomerSelection();
     else $("#quoteCrmLeadId").value = "";

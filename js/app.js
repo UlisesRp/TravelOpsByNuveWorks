@@ -243,7 +243,7 @@ function renderUser() {
   if (state.user.avatar) target.innerHTML = `<img src="${state.user.avatar}" alt="${escapeHTML(state.user.name)}">`;
   else target.textContent = actorLetter(currentActor());
 }
-function showMain() { $("#loginView").classList.add("hidden"); $("#mainView").classList.remove("hidden"); renderUser(); syncBrandFilterUI(); renderAll(); }
+function showMain() { $("#loginView").classList.add("hidden"); $("#mainView").classList.remove("hidden"); renderUser(); syncBrandFilterUI(); renderAll(); window.v3LoadClients?.(); }
 function showLogin() { $("#mainView").classList.add("hidden"); $("#loginView").classList.remove("hidden"); }
 
 async function initAuth() {
@@ -363,6 +363,7 @@ function switchView(name) {
     departures: ["OPERACIÓN", "Salidas"],
     crm: ["VISIBLE PARA TODO EL EQUIPO", "CRM Global"],
     quotes: ["VENTAS", "Cotizaciones"],
+    reservations: ["OPERACIÓN V3", "Reservas"],
     agencies: ["PINK SKY TRAVEL", "Agencias"],
     payments: ["COBRANZA", "Pagos"],
     billing: ["FACTURACIÓN", "Facturación"]
@@ -370,6 +371,7 @@ function switchView(name) {
   $("#pageEyebrow").textContent = labels[name][0];
   $("#pageTitle").textContent = labels[name][1];
   if (name === "calendar") renderCalendar();
+  if (name === "reservations") window.loadV3Reservations?.();
   if (name === "agencies") { renderAgencyFilterVisibility(); renderAgencies(); }
 }
 
