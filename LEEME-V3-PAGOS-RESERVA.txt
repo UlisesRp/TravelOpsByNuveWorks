@@ -1,0 +1,31 @@
+TRAVEL OPS V3 · PAGOS Y RECIBOS SOBRE LA V3 REAL
+
+Esta actualización parte exactamente del ZIP travelops-v3-current.
+No reemplaza v3 por una versión anterior.
+
+CAMBIOS
+- Convertir a reserva solo desde cotización Aceptada.
+- Al convertir pregunta Monto que pagará el cliente.
+- Ese importe queda como total oficial de la reserva.
+- La pantalla Reservas muestra Total / Pagado / Saldo.
+- Pagos / recibos permite registrar abonos y consultar todos los recibos.
+- Cada pago genera folio, PDF y opción para compartir por WhatsApp/Web Share.
+- Conserva pasajeros, itinerario, confirmación y vista de cliente existentes.
+- No hace cálculos de cotización; los importes siguen siendo manuales.
+
+ANTES DE PROBAR
+1. Ejecuta SQL_V3_PAGOS_RESERVA.sql en Supabase.
+2. Sustituye SOLO js/quotes.js y js/v3-reservations.js con los de este paquete.
+3. No sustituyas index.html, app.js, supabase.js ni otros archivos.
+4. Live Server + Ctrl+F5.
+
+PRUEBA
+1. Cotización -> estado Aceptada.
+2. Convertir a reserva.
+3. Seleccionar opción y capturar el monto final acordado.
+4. Abrir Reservas -> Pagos / recibos.
+5. Registrar un abono.
+6. Generar PDF y Enviar recibo.
+7. Verificar Total / Pagado / Saldo.
+
+No hagas push hasta completar esa prueba.
