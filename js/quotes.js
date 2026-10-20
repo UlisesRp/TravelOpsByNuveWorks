@@ -341,7 +341,7 @@ function quoteCardHTML(q) {
     <div class="quote-card-meta"><span>${q.start ? dateFmt.format(parseDate(q.start)) : "—"} → ${q.end ? dateFmt.format(parseDate(q.end)) : "—"}</span><span>${q.options.length} ${q.options.length === 1 ? "opción" : "opciones"}</span></div>
     <div class="quote-card-options">${q.options.map((o, i) => `<div><span>${i + 1}. ${escapeHTML(o.hotel)}</span><strong>${quoteMoney.format(o.total)}</strong></div>`).join("") || `<span>Sin opciones capturadas</span>`}</div>
     <div class="quote-card-bottom"><div><span class="status-chip ${quoteStatusClass(q.status)}">${quoteStatusLabel(q.status)}</span>${best ? `<strong>Desde ${quoteMoney.format(best)}</strong>` : ""}</div><small>Creó ${escapeHTML(creator.name)} · ${quoteDateTime.format(new Date(q.createdAt))}</small></div>
-    <div class="quote-card-actions"><button class="small-btn" data-quote-share="${q.id}">Enviar al cliente</button><button class="small-btn" data-quote-print="${q.id}">Imprimir / PDF</button><button class="small-btn" data-quote-edit="${q.id}">Editar</button><button class="small-btn" data-quote-duplicate="${q.id}">Duplicar</button><button class="small-btn danger" data-quote-delete="${q.id}">Borrar</button>${["enviada", "aceptada"].includes(q.status) ? `<button class="primary-btn" type="button" data-v3-convert="${q.id}">Convertir a reserva</button>` : ""}${["enviada", "aceptada"].includes(q.status) ? `<button class="small-btn" type="button" data-v3-passengers="${q.id}">Pasajeros de reserva</button>` : ""}</div>
+    <div class="quote-card-actions"><button class="small-btn" data-quote-share="${q.id}">Enviar al cliente</button><button class="small-btn" data-quote-print="${q.id}">Imprimir / PDF</button><button class="small-btn" data-quote-edit="${q.id}">Editar</button><button class="small-btn" data-quote-duplicate="${q.id}">Duplicar</button><button class="small-btn danger" data-quote-delete="${q.id}">Borrar</button>${q.status === "aceptada" ? `<button class="primary-btn" type="button" data-v3-convert="${q.id}">Convertir a reserva</button>` : ""}${q.status === "aceptada" ? `<button class="small-btn" type="button" data-v3-passengers="${q.id}">Pasajeros de reserva</button>` : ""}</div>
   </article>`;
 }
 
@@ -353,9 +353,10 @@ function ensureV3ConversionDialog() {
   modal.id = "v3ConversionModal";
   modal.className = "modal";
   modal.innerHTML = `<form id="v3ConversionForm" style="padding:24px;min-width:min(550px,calc(100vw - 48px))">
-    <div class="modal-head"><div><span class="eyebrow">RESERVA V3</span><h3>Convertir cotización</h3></div><button class="icon-btn square" type="button" id="v3ConversionClose">×</button></div>
+    <div class="modal-head"><div><span class="eyebrow">RESERVA V3</span><h3>Convertir cotización aceptada</h3></div><button class="icon-btn square" type="button" id="v3ConversionClose">×</button></div>
     <p id="v3ConversionSummary" class="muted"></p>
     <label style="display:block;margin:16px 0"><span>Opción contratada</span><select id="v3ConversionOption" required style="width:100%;padding:12px"></select></label>
+    <label style="display:block;margin:16px 0"><span>Monto que pagará el cliente</span><input id="v3ConversionOfficialTotal" type="number" min="0.01" step="0.01" required style="width:100%;padding:12px" /><small style="display:block;margin-top:6px;color:#667085">Captura el total final tal como quedó acordado. Travel Ops no lo recalcula.</small></label>
     <label style="display:flex;gap:10px;align-items:start;font-size:13px;margin:16px 0"><input type="checkbox" id="v3ConversionAccepted" required style="margin-top:3px"><span>Confirmo que el cliente seleccionó esta opción y autorizó iniciar la reserva. La firma de términos se solicitará después.</span></label>
     <div id="v3ConversionMessage" role="status" style="margin-bottom:12px;color:#9a3412"></div>
     <div class="modal-actions"><button class="ghost-btn" type="button" id="v3ConversionCancel">Cancelar</button><button class="primary-btn" id="v3ConversionSave" type="submit">Crear reserva por confirmar</button></div>
@@ -363,13 +364,21 @@ function ensureV3ConversionDialog() {
   document.body.appendChild(modal);
   modal.querySelector("#v3ConversionClose").onclick = () => modal.close();
   modal.querySelector("#v3ConversionCancel").onclick = () => modal.close();
+  modal.querySelector("#v3ConversionOption").addEventListener("change", () => {
+    const q = quotesStore.find(row => row.id === modal.dataset.quoteId);
+    const option = q?.options?.find(o => o.id === modal.querySelector("#v3ConversionOption").value);
+    if (option) modal.querySelector("#v3ConversionOfficialTotal").value = Number(option.total || 0) || "";
+  });
   modal.querySelector("#v3ConversionForm").addEventListener("submit", saveV3ConvertedReservation);
   return modal;
 }
 
 async function openV3Conversion(id) {
   const q = quotesStore.find(row => row.id === id);
-  if (!q || !["enviada", "aceptada"].includes(q.status)) return;
+  if (!q || q.status !== "aceptada") {
+    alert("Primero marca la cotización como Aceptada.");
+    return;
+  }
   if (!quotesSupabase) { alert("Para convertir una cotización necesitas conexión con Supabase."); return; }
   const { data: existing, error } = await quotesSupabase.from("reservations")
     .select("id,code").eq("v3_quote_id", q.id).limit(1);
@@ -381,6 +390,8 @@ async function openV3Conversion(id) {
   modal.dataset.quoteId = q.id;
   modal.querySelector("#v3ConversionSummary").textContent = `${q.folio} · ${q.customer} · ${q.destination}`;
   modal.querySelector("#v3ConversionOption").innerHTML = q.options.map(o => `<option value="${escapeHTML(o.id)}">${escapeHTML(o.hotel)} · ${escapeHTML(o.plan)} · ${quoteMoney.format(o.total)}</option>`).join("");
+  const first = q.options[0];
+  modal.querySelector("#v3ConversionOfficialTotal").value = first ? (Number(first.total || 0) || "") : "";
   modal.querySelector("#v3ConversionAccepted").checked = false;
   modal.querySelector("#v3ConversionMessage").textContent = "";
   modal.showModal();
@@ -392,9 +403,14 @@ async function saveV3ConvertedReservation(event) {
   const q = quotesStore.find(row => row.id === modal?.dataset.quoteId);
   if (!q || !quotesSupabase) return;
   const option = q.options.find(o => o.id === modal.querySelector("#v3ConversionOption").value);
+  const officialTotal = Number(modal.querySelector("#v3ConversionOfficialTotal").value);
   const message = modal.querySelector("#v3ConversionMessage");
   const btn = modal.querySelector("#v3ConversionSave");
   if (!option || !modal.querySelector("#v3ConversionAccepted").checked) return;
+  if (!Number.isFinite(officialTotal) || officialTotal <= 0) {
+    message.textContent = "Captura el monto final que pagará el cliente.";
+    return;
+  }
   const adults = Number(q.adultsCount), minors = Number(q.minorsCount);
   if (!Number.isInteger(adults) || adults < 1 || !Number.isInteger(minors) || minors < 0) {
     message.textContent = "Confirma primero los adultos y menores en la cotización (mínimo un adulto)."; return;
@@ -408,25 +424,29 @@ async function saveV3ConvertedReservation(event) {
     if (prior?.length) throw new Error(`Ya existe la reserva ${prior[0].code}.`);
     const actor = currentActor();
     const code = `RES-V3-${q.brand === "pink" ? "PINK" : "VEL"}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const snapshot = { hotel: option.hotel, plan: option.plan, total: option.total, flights: q.flights, services: q.services, rooms: q.rooms, minorAges: q.minorAges };
+    const snapshot = { hotel: option.hotel, plan: option.plan, quotedTotal: Number(option.total || 0), officialTotal, flights: q.flights, services: q.services, rooms: q.rooms, minorAges: q.minorAges };
     const payload = {
       code, brand: q.brand, v3_quote_id: q.id, v3_client_id: q.v3ClientId,
       v3_option_id: option.id, v3_services_snapshot: snapshot,
       client_name: q.customer, destination: q.destination,
       start_date: q.start, end_date: q.end,
       adults, minors, hotel_service: `${option.hotel} · ${option.plan}`,
-      total_amount: Number(option.total), status: "por_confirmar",
-      notes: `Generada desde ${q.folio}. Pendiente de confirmación, itinerario y firma.`,
+      total_amount: officialTotal, status: "por_confirmar",
+      notes: `Generada desde ${q.folio}. Total oficial capturado manualmente. Pendiente de confirmación, itinerario y firma.`,
       created_by: actor.id, updated_by: actor.id
     };
-    const { data: saved, error } = await quotesSupabase.from("reservations").insert(payload).select("id,code").single();
+    const { data: saved, error } = await quotesSupabase.from("reservations").insert(payload).select("id,code,v3_quote_id,v3_option_id,total_amount").single();
     if (error) throw error;
+    if (typeof quoteReservationByQuote !== "undefined") quoteReservationByQuote.set(q.id, saved);
     modal.close();
-    alert(`Reserva ${saved.code} creada como POR CONFIRMAR. No se registró ningún pago ni firma. El expediente de pasajeros e itinerario es el siguiente módulo.`);
+    if (typeof refreshQuotePayments === "function") await refreshQuotePayments();
+    if (typeof window.loadV3Reservations === "function") await window.loadV3Reservations();
+    alert(`Reserva ${saved.code} creada por ${quoteMoney.format(officialTotal)}. Ahora los abonos y recibos usarán este total oficial.`);
   } catch (err) {
     message.textContent = err?.message || "No se pudo guardar la reserva.";
   } finally { btn.disabled = false; }
 }
+
 
 // Expediente V3 por reserva. No toca pasajeros de salidas (booking_id).
 function v3AgeAtDate(birth, date) {
@@ -1203,20 +1223,26 @@ else { bindQuoteModule(); hydrateQuotes(); }
 
 // Cobros directos de cotizaciones aceptadas: independientes de salidas y bookings.
 let quotePaymentRows = [];
+let quoteReservationByQuote = new Map();
 async function refreshQuotePayments() {
   if (!quotesSupabase) return;
-  const {data,error} = await quotesSupabase.from('travelops_quote_payments').select('*').order('created_at',{ascending:true});
-  if (error) { console.warn('Cobros de cotizaciones (ver SQL_COTIZACIONES_PAGOS.sql)',error); return; }
-  quotePaymentRows = data || [];
+  const [paymentsResult, reservationsResult] = await Promise.all([
+    quotesSupabase.from('travelops_quote_payments').select('*').order('created_at',{ascending:true}),
+    quotesSupabase.from('reservations').select('id,code,v3_quote_id,v3_option_id,total_amount,status').not('v3_quote_id','is',null)
+  ]);
+  if (paymentsResult.error) { console.warn('Cobros de cotizaciones (ver SQL_COTIZACIONES_PAGOS.sql)',paymentsResult.error); return; }
+  quotePaymentRows = paymentsResult.data || [];
+  if (!reservationsResult.error) quoteReservationByQuote = new Map((reservationsResult.data || []).map(r => [r.v3_quote_id, r]));
   renderQuotes(); renderPayments();
 }
 function quotePaymentsFor(q) { return quotePaymentRows.filter(p => p.quote_id === q.id); }
 function quotePaymentInfo(q) {
   const rows = quotePaymentsFor(q);
-  const opt = q.options.find(o => o.id === rows[0]?.option_id);
-  const total = rows.length ? Number(rows[0].total_amount) : quoteBestTotal(q);
+  const reservation = quoteReservationByQuote.get(q.id);
+  const opt = q.options.find(o => o.id === (rows[0]?.option_id || reservation?.v3_option_id));
+  const total = rows.length ? Number(rows[0].total_amount) : reservation ? Number(reservation.total_amount || 0) : quoteBestTotal(q);
   const paid = rows.reduce((n,p)=>n+Number(p.amount),0);
-  return {rows,opt,total,paid,balance:Math.max(0,total-paid)};
+  return {rows,opt,reservation,total,paid,balance:Math.max(0,total-paid)};
 }
 function quotePaymentActions(q) {
   const info = quotePaymentInfo(q);
@@ -1245,17 +1271,22 @@ function openQuotePaymentModal(id) {
   if (!q||q.status!=='aceptada') return alert('La cotización debe estar aceptada.');
   if (!quotesSupabase) return alert('Debes iniciar sesión con Supabase para registrar pagos.');
   const info=quotePaymentInfo(q);
+  if (!info.reservation) return alert('Primero convierte la cotización aceptada en reserva y captura el monto oficial que pagará el cliente.');
+  if (info.reservation.status === 'cancelada') return alert('La reserva está cancelada.');
+  const optionId=info.rows[0]?.option_id || info.reservation.v3_option_id;
   $('#quotePaymentForm').dataset.quoteId=q.id;
-  $('#quotePaymentSummary').textContent=`${q.folio} · ${q.customer} · Saldo: ${quoteMoney.format(info.balance)}`;
-  $('#quotePaymentOption').innerHTML=q.options.filter(o=>Number(o.total)>0).map(o=>`<option value="${o.id}">${escapeHTML(o.hotel)} — ${quoteMoney.format(o.total)}</option>`).join('');
-  if(info.rows.length) {$('#quotePaymentOption').value=info.rows[0].option_id;$('#quotePaymentOption').disabled=true;}
-  else $('#quotePaymentOption').disabled=false;
+  $('#quotePaymentForm').dataset.officialTotal=String(info.total);
+  $('#quotePaymentSummary').textContent=`${info.reservation.code} · ${q.customer} · Total oficial ${quoteMoney.format(info.total)} · Saldo ${quoteMoney.format(info.balance)}`;
+  $('#quotePaymentOption').innerHTML=q.options.filter(o=>Number(o.total)>0).map(o=>`<option value="${o.id}">${escapeHTML(o.hotel)} — cotizado ${quoteMoney.format(o.total)}</option>`).join('');
+  if(optionId) $('#quotePaymentOption').value=optionId;
+  $('#quotePaymentOption').disabled=true;
   $('#quotePaymentAmount').value='';
   $('#quotePaymentDate').value=new Date().toLocaleDateString('en-CA');
   $('#quotePaymentReference').value=''; $('#quotePaymentNotes').value='';
-  if(!info.balance && info.rows.length) return alert('Esta cotización ya está liquidada.');
+  if(!info.balance && info.rows.length) return alert('Esta reserva ya está liquidada.');
   $('#quotePaymentModal').showModal();
 }
+
 async function saveQuotePayment(e) {
   e.preventDefault();
   const button=e.currentTarget.querySelector('[type="submit"]'); if(button.disabled) return;
@@ -1264,8 +1295,9 @@ async function saveQuotePayment(e) {
   const opt=q.options.find(o=>o.id===$('#quotePaymentOption').value);
   const info=quotePaymentInfo(q);
   const amount=Number($('#quotePaymentAmount').value);
+  if(!info.reservation)return alert('Primero crea la reserva.');
   if(!opt||!Number.isFinite(amount)||amount<=0)return alert('Selecciona una opción y un importe válido.');
-  const total=info.rows.length?info.total:Number(opt.total);
+  const total=Number(info.reservation.total_amount || e.currentTarget.dataset.officialTotal || 0);
   if(amount>total-info.paid+0.001)return alert('El abono supera el saldo pendiente.');
   button.disabled=true;
   try {
@@ -1273,10 +1305,12 @@ async function saveQuotePayment(e) {
     if(error)throw error;
     quotePaymentRows.push(data);
     $('#quotePaymentModal').close(); renderQuotes();renderPayments();
-    alert('Pago guardado. Folio: '+data.receipt_number+'\nPuedes imprimir el recibo desde Pagos.');
+    if (typeof window.loadV3Reservations === 'function') await window.loadV3Reservations();
+    alert('Pago guardado. Folio: '+data.receipt_number+'\nPuedes imprimir o enviar el recibo desde Reservas o Pagos.');
   }catch(err){alert('No se pudo guardar el pago: '+err.message);}
   finally{button.disabled=false;}
 }
+
 function findQuotePayment(id){const payment=quotePaymentRows.find(p=>p.id===id);return payment?{payment,q:quotesStore.find(q=>q.id===payment.quote_id)}:null;}
 function quoteReceiptMessage(q,p){
   const info=quotePaymentInfo(q);

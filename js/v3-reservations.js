@@ -4,6 +4,7 @@
   let records = [];
   let passengersCount = new Map();
   let itineraryCache = new Map();
+  let paymentRows = [];
   const el = id => document.getElementById(id);
   const esc = value => escapeHTML(String(value ?? ''));
   const fmt = value => value ? String(value).slice(0, 10).split('-').reverse().join('/') : '—';
@@ -22,6 +23,88 @@
   };
   const stateLabels = {por_confirmar:'Por confirmar',confirmada:'Confirmada',cancelada:'Cancelada'};
 
+  function paymentsFor(r) { return paymentRows.filter(p => p.quote_id === r.v3_quote_id); }
+  function paymentInfo(r) {
+    const rows = paymentsFor(r);
+    const total = Number(r.total_amount || 0);
+    const paid = rows.reduce((sum,p)=>sum+Number(p.amount||0),0);
+    return {rows,total,paid,balance:Math.max(0,total-paid)};
+  }
+  function paymentThrough(r,payment) {
+    return paymentsFor(r)
+      .filter(p => p.created_at < payment.created_at || (p.created_at === payment.created_at && p.id <= payment.id))
+      .reduce((sum,p)=>sum+Number(p.amount||0),0);
+  }
+  function receiptPayload(r,p) {
+    return {
+      folio:p.receipt_number, brand:r.brand, customer:r.client_name, destination:r.destination,
+      concept:`Reserva ${r.code}`, paidOn:p.paid_on, amount:Number(p.amount), total:Number(p.total_amount),
+      paid:paymentThrough(r,p), method:p.method, reference:p.reference, notes:p.notes
+    };
+  }
+  function receiptMessage(r,p) {
+    const paid=paymentThrough(r,p), total=Number(p.total_amount||r.total_amount||0);
+    return `Recibo ${p.receipt_number}\n${r.brand==='pink'?'Pink Sky Travel':'Velora Travel'}\nCliente: ${r.client_name}\nReserva: ${r.code}\nDestino: ${r.destination}\nAbono: ${peso(p.amount)}\nFecha: ${fmt(p.paid_on)}\nPagado acumulado: ${peso(paid)}\nSaldo: ${peso(Math.max(0,total-paid))}`;
+  }
+  async function downloadReceipt(r,p) {
+    if (typeof createTravelReceiptPDF !== 'function' || typeof saveTravelReceipt !== 'function') return alert('El generador de recibos no está disponible.');
+    const file=await createTravelReceiptPDF(receiptPayload(r,p)); if(file) saveTravelReceipt(file);
+  }
+  async function shareReceipt(r,p) {
+    if (typeof createTravelReceiptPDF !== 'function' || typeof shareTravelReceiptFile !== 'function') return alert('El generador de recibos no está disponible.');
+    const file=await createTravelReceiptPDF(receiptPayload(r,p)); if(file) await shareTravelReceiptFile(file,receiptMessage(r,p),'whatsapp');
+  }
+  function ensurePaymentDialog() {
+    let dlg=el('v3ReservationPaymentDialog');
+    if(dlg)return dlg;
+    dlg=document.createElement('dialog');dlg.id='v3ReservationPaymentDialog';dlg.className='modal';
+    dlg.style.cssText='width:min(760px,calc(100vw - 28px));max-height:90vh;overflow:auto;border:0;border-radius:18px;padding:0';
+    dlg.innerHTML=`<div style="padding:23px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><span class="eyebrow">RESERVA V3 · COBRANZA</span><h2 style="margin:5px 0">Pagos y recibos</h2></div><button type="button" class="ghost-btn compact" id="v3PayClose">Cerrar</button></div><p id="v3PaySummary" class="muted"></p><form id="v3PayForm" style="display:grid;gap:12px;margin:16px 0;padding:16px;border:1px solid #dde3e9;border-radius:12px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><label>Monto recibido<input id="v3PayAmount" type="number" min="0.01" step="0.01" required></label><label>Fecha<input id="v3PayDate" type="date" required></label><label>Método<select id="v3PayMethod"><option>Transferencia</option><option>Efectivo</option><option>Tarjeta</option><option>Depósito</option><option>Otro</option></select></label><label>Referencia<input id="v3PayReference"></label></div><label>Notas<textarea id="v3PayNotes" rows="2"></textarea></label><div><button type="submit" class="primary-btn compact" id="v3PaySave">Registrar abono</button></div><p id="v3PayMessage" role="status" style="margin:0;color:#b42318"></p></form><section><h3>Historial de pagos</h3><div id="v3PayHistory"></div></section></div>`;
+    document.body.appendChild(dlg);
+    el('v3PayClose').addEventListener('click',()=>dlg.close());
+    el('v3PayForm').addEventListener('submit',saveReservationPayment);
+    el('v3PayHistory').addEventListener('click',async e=>{
+      const btn=e.target.closest('[data-v3-pay-pdf],[data-v3-pay-share]');if(!btn)return;
+      const r=records.find(x=>x.id===dlg.dataset.reservationId),p=paymentRows.find(x=>x.id===(btn.dataset.v3PayPdf||btn.dataset.v3PayShare));
+      if(!r||!p)return;
+      if(btn.dataset.v3PayPdf) await downloadReceipt(r,p); else await shareReceipt(r,p);
+    });
+    return dlg;
+  }
+  function renderPaymentDialog(r) {
+    const info=paymentInfo(r), dlg=ensurePaymentDialog();
+    el('v3PaySummary').textContent=`${r.code} · ${r.client_name} · Total ${peso(info.total)} · Pagado ${peso(info.paid)} · Saldo ${peso(info.balance)}`;
+    const save=el('v3PaySave');save.disabled=info.balance<=0||r.status==='cancelada';
+    el('v3PayAmount').disabled=save.disabled;el('v3PayMessage').textContent=info.balance<=0?'Reserva liquidada.':r.status==='cancelada'?'La reserva está cancelada.':'';
+    const rows=[...info.rows].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+    el('v3PayHistory').innerHTML=rows.length?rows.map(p=>`<div style="padding:12px 0;border-top:1px solid #e6e9ef;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><strong>${esc(p.receipt_number)} · ${peso(p.amount)}</strong><div style="font-size:12px;color:#667085">${fmt(p.paid_on)} · ${esc(p.method||'—')}${p.reference?' · '+esc(p.reference):''}</div></div><div style="display:flex;gap:7px"><button type="button" class="ghost-btn compact" data-v3-pay-pdf="${esc(p.id)}">PDF</button><button type="button" class="ghost-btn compact" data-v3-pay-share="${esc(p.id)}">Enviar recibo</button></div></div>`).join(''):'<div class="empty">Sin pagos registrados.</div>';
+  }
+  function openPayments(id) {
+    const r=records.find(x=>x.id===id);if(!r)return;
+    const dlg=ensurePaymentDialog();dlg.dataset.reservationId=r.id;
+    el('v3PayForm').reset();el('v3PayDate').value=new Date().toLocaleDateString('en-CA');
+    renderPaymentDialog(r);dlg.showModal();
+  }
+  async function saveReservationPayment(event) {
+    event.preventDefault();
+    const dlg=ensurePaymentDialog(),r=records.find(x=>x.id===dlg.dataset.reservationId);if(!r)return;
+    const info=paymentInfo(r),amount=Number(el('v3PayAmount').value),msg=el('v3PayMessage'),btn=el('v3PaySave');
+    if(!r.v3_option_id){msg.textContent='La reserva no tiene opción de cotización vinculada.';return;}
+    if(!Number.isFinite(amount)||amount<=0){msg.textContent='Captura un monto válido.';return;}
+    if(amount>info.balance+0.001){msg.textContent='El abono supera el saldo pendiente.';return;}
+    btn.disabled=true;msg.textContent='Guardando pago…';
+    try{
+      const sb=await window.getSupabase();if(!sb)throw new Error('Debes iniciar sesión.');
+      const {data,error}=await sb.from('travelops_quote_payments').insert({quote_id:r.v3_quote_id,option_id:r.v3_option_id,total_amount:Number(r.total_amount),amount,paid_on:el('v3PayDate').value,method:el('v3PayMethod').value,reference:el('v3PayReference').value.trim(),notes:el('v3PayNotes').value.trim(),created_by:state.user.id}).select().single();
+      if(error)throw error;
+      paymentRows.push(data);el('v3PayAmount').value='';el('v3PayReference').value='';el('v3PayNotes').value='';
+      renderPaymentDialog(r);render();
+      if(typeof refreshQuotePayments==='function')await refreshQuotePayments();
+      msg.style.color='#166534';msg.textContent=`Pago guardado · ${data.receipt_number}.`;
+    }catch(err){msg.style.color='#b42318';msg.textContent='No se pudo guardar: '+(err.message||String(err));}
+    finally{btn.disabled=paymentInfo(r).balance<=0||r.status==='cancelada';}
+  }
+
   function render() {
     const list = el('v3ReservationList');
     if (!list) return;
@@ -37,12 +120,14 @@
     list.innerHTML = matches.length ? matches.map(r => {
       const count = passengersCount.get(r.id) || 0;
       const expected = Number(r.adults || 0) + Number(r.minors || 0);
+      const pay = paymentInfo(r);
       return `<article style="border:1px solid #e0e4eb;border-radius:14px;padding:17px;background:white">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><small class="eyebrow">${esc(r.code)}</small><h3 style="margin:5px 0">${esc(r.destination)}</h3><p style="margin:3px 0">${esc(r.client_name)}</p></div><div style="text-align:right"><strong>${esc(stateLabels[r.status] || r.status)}</strong><div style="margin-top:6px">${esc(r.brand === 'pink' ? 'Pink Sky Travel' : 'Velora Travel')}</div></div></div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin:14px 0;font-size:13px"><span>Hotel: <strong>${esc(r.hotel_service || 'Sin hotel')}</strong></span><span>Viaje: <strong>${fmt(r.start_date)} – ${fmt(r.end_date)}</strong></span><span>Viajeros: <strong>${Number(r.adults||0)} adultos, ${Number(r.minors||0)} menores</strong></span><span>Importe: <strong>${peso(r.total_amount)}</strong></span><span>Pasajeros capturados: <strong>${count}/${expected}</strong></span></div>
-        <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="primary-btn compact" type="button" data-v3-res-pax="${esc(r.v3_quote_id)}">${count ? 'Ver / editar pasajeros' : 'Capturar pasajeros'}</button><button class="ghost-btn compact" type="button" data-v3-res-itinerary="${esc(r.id)}">Editar itinerario</button><button class="ghost-btn compact" type="button" data-v3-res-preview="${esc(r.id)}">Vista de confirmación</button><button class="ghost-btn compact" type="button" data-v3-res-quote="${esc(r.v3_quote_id)}">Ver cotización</button></div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px 22px;margin:14px 0;font-size:13px"><span>Hotel: <strong>${esc(r.hotel_service || 'Sin hotel')}</strong></span><span>Viaje: <strong>${fmt(r.start_date)} – ${fmt(r.end_date)}</strong></span><span>Viajeros: <strong>${Number(r.adults||0)} adultos, ${Number(r.minors||0)} menores</strong></span><span>Total oficial: <strong>${peso(pay.total)}</strong></span><span>Pagado: <strong>${peso(pay.paid)}</strong></span><span>Saldo: <strong>${peso(pay.balance)}</strong></span><span>Pasajeros capturados: <strong>${count}/${expected}</strong></span></div>
+        <div style="display:flex;gap:9px;flex-wrap:wrap"><button class="${pay.balance>0?'primary-btn':'ghost-btn'} compact" type="button" data-v3-res-payments="${esc(r.id)}">Pagos / recibos${pay.rows.length?` (${pay.rows.length})`:''}</button><button class="primary-btn compact" type="button" data-v3-res-pax="${esc(r.v3_quote_id)}">${count ? 'Ver / editar pasajeros' : 'Capturar pasajeros'}</button><button class="ghost-btn compact" type="button" data-v3-res-itinerary="${esc(r.id)}">Editar itinerario</button><button class="ghost-btn compact" type="button" data-v3-res-preview="${esc(r.id)}">Vista de confirmación</button><button class="ghost-btn compact" type="button" data-v3-res-quote="${esc(r.v3_quote_id)}">Ver cotización</button></div>
       </article>`;
     }).join('') : `<div class="empty">No hay reservas V3 con estos filtros.</div>`;
+    list.querySelectorAll('[data-v3-res-payments]').forEach(b => b.addEventListener('click', () => openPayments(b.dataset.v3ResPayments)));
     list.querySelectorAll('[data-v3-res-itinerary]').forEach(b => b.addEventListener('click', () => openItinerary(b.dataset.v3ResItinerary)));
     list.querySelectorAll('[data-v3-res-preview]').forEach(b => b.addEventListener('click', () => preview(b.dataset.v3ResPreview)));
     list.querySelectorAll('[data-v3-res-pax]').forEach(b => b.addEventListener('click', () => {
@@ -213,10 +298,16 @@
       if (error) throw error;
       records = data || [];
       passengersCount = new Map();
+      paymentRows = [];
       if (records.length) {
         const {data:people,error:pe} = await sb.from('passengers').select('reservation_id').in('reservation_id',records.map(r => r.id));
         if (pe) throw pe;
         (people || []).forEach(p => passengersCount.set(p.reservation_id,(passengersCount.get(p.reservation_id)||0)+1));
+        const quoteIds=[...new Set(records.map(r=>r.v3_quote_id).filter(Boolean))];
+        if(quoteIds.length){
+          const {data:pays,error:payError}=await sb.from('travelops_quote_payments').select('*').in('quote_id',quoteIds).order('created_at',{ascending:true});
+          if(payError) console.warn('No se pudieron cargar pagos V3',payError); else paymentRows=pays||[];
+        }
       }
       info.textContent = '';
       render();
