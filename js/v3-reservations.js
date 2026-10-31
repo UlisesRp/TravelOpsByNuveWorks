@@ -22,6 +22,13 @@
     return `${nice}${h && !(h === '00' && min === '00') ? ` · ${h}:${min} h` : ' · Horario por confirmar'}`;
   };
   const stateLabels = {por_confirmar:'Por confirmar',confirmada:'Confirmada',cancelada:'Cancelada'};
+  const TERMS_VERSION = 'TO-POLITICAS-2026-10-V1';
+
+  function policyPageURL(r) {
+    const url = new URL('politicas-condiciones.html', window.location.href);
+    url.searchParams.set('brand', r?.brand === 'pink' ? 'pink' : 'velora');
+    return url.toString();
+  }
 
   function paymentsFor(r) { return paymentRows.filter(p => p.quote_id === r.v3_quote_id); }
   function paymentInfo(r) {
@@ -356,6 +363,58 @@
       });
     }else line('Itinerario pendiente de elaboración.',9,false,0,muted);
 
+    section('POLÍTICAS Y CONDICIONES GENERALES');
+    line(`Versión aplicable: ${TERMS_VERSION}`,8,false,0,muted);
+    let policySections = [];
+    let policyIntro = '';
+    try {
+      const response = await fetch(policyPageURL(r), {cache:'no-cache'});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const source = await response.text();
+      const policyDoc = new DOMParser().parseFromString(source,'text/html');
+      policyIntro = (policyDoc.querySelector('.intro')?.textContent || '').replaceAll('Velora Travel',brandName).trim();
+      policySections = [...policyDoc.querySelectorAll('.policy-section')].map(node => ({
+        title: (node.querySelector('h2')?.textContent || '').trim(),
+        paragraphs: [...node.querySelectorAll('p,li')].map(item => ({
+          bullet: item.tagName.toLowerCase() === 'li',
+          text: item.textContent.replaceAll('Velora Travel',brandName).trim()
+        })).filter(item => item.text)
+      }));
+    } catch (err) {
+      console.warn('Travel Ops: no se pudo cargar el anexo de políticas; se conservará el enlace.',err);
+    }
+    const policyLine = (text, size=7.5, bold=false) => {
+      const lines = pdf.splitTextToSize(String(text || ''),width);
+      const lineHeight = size * 0.38 + 1.45;
+      let offset = 0;
+      while (offset < lines.length) {
+        let available = Math.floor((278-y)/lineHeight);
+        if (available < 1) { pdf.addPage(); y=18; available=Math.floor((278-y)/lineHeight); }
+        const chunk = lines.slice(offset,offset+available);
+        setText(size,bold,dark);
+        pdf.text(chunk,left,y);
+        y += chunk.length*lineHeight + 1;
+        offset += chunk.length;
+        if (offset < lines.length) { pdf.addPage(); y=18; }
+      }
+    };
+    if (policyIntro) policyLine(policyIntro,8,false);
+    if (policySections.length) {
+      for (const item of policySections) {
+        ensure(12); y += 2; setText(9,true,accent); pdf.text(item.title,left,y); y += 5;
+        for (const paragraph of item.paragraphs) policyLine(`${paragraph.bullet ? '• ' : ''}${paragraph.text}`,7.5,false);
+        y += 2;
+      }
+    } else {
+      policyLine('No fue posible insertar el texto completo en este archivo. Consulta las políticas completas en el enlace siguiente.',8,false);
+    }
+    ensure(12);
+    const termsUrl = policyPageURL(r);
+    setText(8,false,[20,75,150]);
+    if (typeof pdf.textWithLink === 'function') pdf.textWithLink('Abrir políticas y condiciones completas',left,y,{url:termsUrl});
+    else pdf.text(termsUrl,left,y);
+    y += 7;
+
     ensure(20);y+=5;pdf.setDrawColor(225,228,233);pdf.line(left,y,right,y);y+=7;
     setText(8,false,muted);pdf.text('Documento de confirmación generado por Travel Ops by Nuve Works. No sustituye un CFDI.',left,y);
     const filename=`CONFIRMACION-${String(r.code||'RESERVA').replace(/[^a-z0-9_-]/gi,'_')}.pdf`;
@@ -404,7 +463,7 @@
       const brandName=r.brand==='pink'?'Pink Sky Travel':'Velora Travel';
       const win=window.open('', '_blank', 'width=900,height=760');
       if(!win)return alert('Permite ventanas emergentes para imprimir la confirmación.');
-      const page=`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirmación ${esc(r.code)}</title><style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#172033;margin:0;background:#fff;font-size:11px}.sheet{max-width:780px;margin:auto}.head{display:flex;align-items:center;gap:18px;border-bottom:3px solid ${r.brand==='pink'?'#622370':'#1d5346'};padding-bottom:14px;margin-bottom:14px}.head img{width:72px;height:72px;object-fit:contain}.head h1{margin:0;font-size:23px}.head p{margin:4px 0 0;color:#667085}.sheet h3{font-size:13px;color:${r.brand==='pink'?'#622370':'#1d5346'};page-break-after:avoid}.sheet section{break-inside:avoid}.sheet a{color:#1457a6}.foot{margin-top:20px;padding-top:10px;border-top:1px solid #ddd;color:#667085;font-size:9px}.toolbar{position:sticky;top:0;background:#111827;color:white;padding:10px;display:flex;justify-content:center}.toolbar button{border:0;border-radius:8px;padding:9px 13px;font-weight:700;cursor:pointer}@media print{.toolbar{display:none}.sheet{max-width:none}}</style></head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Guardar PDF</button></div><main class="sheet"><header class="head"><img src="${logo}" alt="${esc(brandName)}"><div><h1>CONFIRMACIÓN DE RESERVA</h1><p>${esc(brandName)} · ${esc(r.code)}</p></div></header>${body}<footer class="foot">Documento de confirmación generado por Travel Ops by Nuve Works. Revisa los datos antes de compartir con el cliente.</footer></main></body></html>`;
+      const page=`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Confirmación ${esc(r.code)}</title><style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#172033;margin:0;background:#fff;font-size:11px}.sheet{max-width:780px;margin:auto}.head{display:flex;align-items:center;gap:18px;border-bottom:3px solid ${r.brand==='pink'?'#622370':'#1d5346'};padding-bottom:14px;margin-bottom:14px}.head img{width:72px;height:72px;object-fit:contain}.head h1{margin:0;font-size:23px}.head p{margin:4px 0 0;color:#667085}.sheet h3{font-size:13px;color:${r.brand==='pink'?'#622370':'#1d5346'};page-break-after:avoid}.sheet section{break-inside:avoid}.sheet .policy-section{margin:14px 0}.sheet .policy-section h2{font-size:12px;color:${r.brand==='pink'?'#622370':'#1d5346'};border-bottom:1px solid #ddd;padding-bottom:5px}.sheet .policy-section p,.sheet .policy-section li{font-size:10px;line-height:1.45}.sheet a{color:#1457a6}.foot{margin-top:20px;padding-top:10px;border-top:1px solid #ddd;color:#667085;font-size:9px}.toolbar{position:sticky;top:0;background:#111827;color:white;padding:10px;display:flex;justify-content:center}.toolbar button{border:0;border-radius:8px;padding:9px 13px;font-weight:700;cursor:pointer}@media print{.toolbar{display:none}.sheet{max-width:none}}</style></head><body><div class="toolbar"><button onclick="window.print()">Imprimir / Guardar PDF</button></div><main class="sheet"><header class="head"><img src="${logo}" alt="${esc(brandName)}"><div><h1>CONFIRMACIÓN DE RESERVA</h1><p>${esc(brandName)} · ${esc(r.code)}</p></div></header>${body}<footer class="foot">Documento de confirmación generado por Travel Ops by Nuve Works. Revisa los datos antes de compartir con el cliente.</footer></main></body></html>`;
       win.document.open();win.document.write(page);win.document.close();
       setTimeout(()=>{win.focus();win.print();},350);
     });
@@ -441,6 +500,16 @@
       const snap=r.v3_services_snapshot||{};
       const flights=Array.isArray(snap.flights)?snap.flights:[];
       const services=Array.isArray(snap.services)?snap.services:[];
+      const brandName=r.brand==='pink'?'Pink Sky Travel':'Velora Travel';
+      let policyMarkup=`<p>Versión aplicable: <strong>${TERMS_VERSION}</strong></p><p><a href="${esc(policyPageURL(r))}" target="_blank" rel="noopener noreferrer">Leer políticas completas de ${esc(brandName)} ↗</a></p>`;
+      try {
+        const policyResponse=await fetch(policyPageURL(r),{cache:'no-cache'});
+        if(policyResponse.ok){
+          const policyDocument=new DOMParser().parseFromString(await policyResponse.text(),'text/html');
+          const policyContent=policyDocument.querySelector('#policyContent');
+          if(policyContent) policyMarkup=`<p>Versión aplicable: <strong>${TERMS_VERSION}</strong></p>${policyContent.innerHTML.replaceAll('Velora Travel',brandName)}`;
+        }
+      } catch(err) { console.warn('Travel Ops: no se pudieron cargar las políticas para la vista previa.',err); }
       const age=(birth,at)=>{
         if(!birth||!at)return '—';
         const [y,m,d]=String(birth).slice(0,10).split('-').map(Number);
@@ -458,7 +527,8 @@
         ${group('Vuelos',flights.length?flights.map(f=>`<div style="padding:9px 0;border-bottom:1px solid #eee"><strong>${esc(f.route||'Vuelo')}</strong><div>Salida: ${esc(f.departureText||'—')} · ${esc(flightDateText(f.departureAt))}</div><div>Regreso: ${esc(f.returnText||'—')} · ${esc(flightDateText(f.returnAt))}</div><div>Equipaje: ${esc(f.baggage||'—')}</div></div>`).join(''):'<p>No se incluyeron vuelos en la reserva.</p>')}
         ${group('Tours, traslados y otros servicios',services.length?services.map(x=>`<div style="padding:8px 0;border-bottom:1px solid #eee"><strong>${esc(x.name||'Servicio')}</strong> · ${esc(x.type||'Otro')}<div>${esc(x.detail||'')}</div>${x.notes?`<small>${esc(x.notes)}</small>`:''}</div>`).join(''):'<p>No se registraron servicios adicionales.</p>')}
         ${group('Itinerario',itinerary.length?itinerary.map(a=>`<div style="padding:8px 0;border-bottom:1px solid #eee"><strong>${esc(fmt(a.activity_date))}${a.activity_time?' · '+esc(String(a.activity_time).slice(0,5)):''} — ${esc(a.title)}</strong>${a.description?`<div>${esc(a.description)}</div>`:''}${a.meeting_point?`<small style="display:block">Lugar: ${esc(a.meeting_point)}</small>`:''}${safeHttpUrl(a.location_url)?`<a href="${esc(safeHttpUrl(a.location_url))}" target="_blank" rel="noopener noreferrer">Abrir ubicación ↗</a>`:''}${a.notes?`<small style="display:block;color:#667085;margin-top:3px">Notas: ${esc(a.notes)}</small>`:''}</div>`).join(''):'<p>Itinerario pendiente de elaboración.</p>')}
-        ${group('Aceptación del cliente',r.signed_at?`<p><strong>Firmada por ${esc(r.signed_by||'cliente')}</strong><br><small>${esc(new Date(r.signed_at).toLocaleString('es-MX'))}</small></p>`:'<p>Pendiente de firma y aceptación electrónica del cliente.</p>')}
+        ${group('Políticas y condiciones generales',policyMarkup)}
+        ${group('Aceptación del cliente',r.signed_at?`<p><strong>Firmada por ${esc(r.signed_by||'cliente')}</strong><br><small>${esc(new Date(r.signed_at).toLocaleString('es-MX'))}</small>${r.accepted_terms_version?`<br><small>Políticas aceptadas: ${esc(r.accepted_terms_version)}</small>`:''}</p>`:'<p>Pendiente de firma y aceptación electrónica del cliente.</p>')}
       </div>`;
       el('v3CustomerPreviewBtn').disabled=false;el('v3PrintConfirmationBtn').disabled=false;el('v3ShareConfirmationBtn').disabled=false;el('v3SendSignatureBtn').disabled=false;
     } catch(err) {content.textContent='No se pudo preparar la confirmación: '+(err.message||String(err));}
@@ -525,7 +595,7 @@
     const safe=url=>{try{const u=new URL(url);return ['http:','https:'].includes(u.protocol)?u.href:'';}catch{return '';}};
     return `
       <style>
-        *{box-sizing:border-box}body{margin:0;background:#f2f4f8;color:#172033;font-family:Inter,system-ui,-apple-system,Arial,sans-serif}.pub-shell{max-width:850px;margin:24px auto;background:#fff;border-radius:20px;box-shadow:0 16px 55px #18223518;overflow:hidden}.pub-head{padding:24px 28px;border-top:7px solid ${accent};display:flex;align-items:center;gap:18px;border-bottom:1px solid #e8ebef}.pub-head img{width:74px;height:74px;object-fit:contain}.pub-head h1{font-size:23px;margin:0}.pub-head p{margin:5px 0 0;color:#667085}.pub-body{padding:26px 28px}.pub-badge{display:inline-block;padding:7px 10px;border-radius:999px;background:${signed?'#eaf8f0':'#fff6e8'};color:${signed?'#166534':'#9a5b09'};font-size:12px;font-weight:800;margin-bottom:14px}.pub-section{margin:22px 0}.pub-section h2{font-size:16px;color:${accent};border-bottom:1px solid #e2e6eb;padding-bottom:8px}.pub-row{display:grid;grid-template-columns:180px 1fr;gap:14px;padding:7px 0}.pub-row span{color:#667085}.pub-list{display:grid;gap:10px}.pub-item{padding:12px;border:1px solid #e4e8ed;border-radius:12px;background:#fbfcfd}.pub-item strong{display:block;margin-bottom:4px}.pub-money{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pub-money div{padding:14px;border-radius:12px;background:#f7f8fb}.pub-money span{display:block;color:#667085;font-size:12px}.pub-money strong{display:block;font-size:18px;margin-top:5px}.sign-card{margin-top:26px;padding:18px;border:1px solid #dce3eb;border-radius:16px;background:#fbfcfe}.sign-card label{display:grid;gap:6px;margin:12px 0}.sign-card input[type=text]{width:100%;padding:12px;border:1px solid #cfd7e2;border-radius:10px}.check-line{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:9px!important;font-size:13px;line-height:1.45}.signature-box{border:1px solid #bfc9d6;border-radius:12px;background:white;overflow:hidden}.signature-box canvas{display:block;width:100%;height:210px;touch-action:none}.sign-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:800;cursor:pointer}.btn.primary{background:${accent};color:#fff}.btn.ghost{background:#e9edf2;color:#172033}.sign-message{margin-top:10px;font-weight:700}.signed-card{padding:18px;border-radius:14px;background:#eaf8f0;color:#14532d}.pub-foot{padding:18px 28px;border-top:1px solid #e8ebef;color:#667085;font-size:11px;text-align:center}@media(max-width:700px){.pub-shell{margin:0;border-radius:0;min-height:100vh}.pub-head,.pub-body{padding:20px}.pub-row{grid-template-columns:1fr;gap:2px}.pub-money{grid-template-columns:1fr}.signature-box canvas{height:180px}}
+        *{box-sizing:border-box}body{margin:0;background:#f2f4f8;color:#172033;font-family:Inter,system-ui,-apple-system,Arial,sans-serif}.pub-shell{max-width:850px;margin:24px auto;background:#fff;border-radius:20px;box-shadow:0 16px 55px #18223518;overflow:hidden}.pub-head{padding:24px 28px;border-top:7px solid ${accent};display:flex;align-items:center;gap:18px;border-bottom:1px solid #e8ebef}.pub-head img{width:74px;height:74px;object-fit:contain}.pub-head h1{font-size:23px;margin:0}.pub-head p{margin:5px 0 0;color:#667085}.pub-body{padding:26px 28px}.pub-badge{display:inline-block;padding:7px 10px;border-radius:999px;background:${signed?'#eaf8f0':'#fff6e8'};color:${signed?'#166534':'#9a5b09'};font-size:12px;font-weight:800;margin-bottom:14px}.pub-section{margin:22px 0}.pub-section h2{font-size:16px;color:${accent};border-bottom:1px solid #e2e6eb;padding-bottom:8px}.pub-row{display:grid;grid-template-columns:180px 1fr;gap:14px;padding:7px 0}.pub-row span{color:#667085}.pub-list{display:grid;gap:10px}.pub-item{padding:12px;border:1px solid #e4e8ed;border-radius:12px;background:#fbfcfd}.pub-item strong{display:block;margin-bottom:4px}.pub-money{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pub-money div{padding:14px;border-radius:12px;background:#f7f8fb}.pub-money span{display:block;color:#667085;font-size:12px}.pub-money strong{display:block;font-size:18px;margin-top:5px}.sign-card{margin-top:26px;padding:18px;border:1px solid #dce3eb;border-radius:16px;background:#fbfcfe}.sign-card label{display:grid;gap:6px;margin:12px 0}.sign-card input[type=text]{width:100%;padding:12px;border:1px solid #cfd7e2;border-radius:10px}.policy-link{display:inline-flex;align-items:center;gap:6px;padding:10px 13px;border-radius:10px;background:${accent};color:#fff!important;text-decoration:none;font-weight:800}.policy-embed{margin-top:12px;border:1px solid #dce3eb;border-radius:12px;padding:12px;background:#fff}.policy-embed summary{cursor:pointer;font-weight:800;color:${accent};padding:4px}.policy-embed iframe{display:block;width:100%;height:520px;border:1px solid #e4e8ed;border-radius:8px;margin-top:12px;background:#fff}.check-line{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:9px!important;font-size:13px;line-height:1.45}.signature-box{border:1px solid #bfc9d6;border-radius:12px;background:white;overflow:hidden}.signature-box canvas{display:block;width:100%;height:210px;touch-action:none}.sign-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:800;cursor:pointer}.btn.primary{background:${accent};color:#fff}.btn.ghost{background:#e9edf2;color:#172033}.sign-message{margin-top:10px;font-weight:700}.signed-card{padding:18px;border-radius:14px;background:#eaf8f0;color:#14532d}.pub-foot{padding:18px 28px;border-top:1px solid #e8ebef;color:#667085;font-size:11px;text-align:center}@media(max-width:700px){.pub-shell{margin:0;border-radius:0;min-height:100vh}.pub-head,.pub-body{padding:20px}.pub-row{grid-template-columns:1fr;gap:2px}.pub-money{grid-template-columns:1fr}.signature-box canvas{height:180px}}
       </style>
       <main class="pub-shell">
         <header class="pub-head"><img src="${logo}" alt="${esc(brandName)}"><div><h1>Confirmación de reserva</h1><p>${esc(brandName)} · ${esc(r.code||'')}</p></div></header>
@@ -537,7 +607,8 @@
           ${section('Tours, traslados y otros servicios',services.length?`<div class="pub-list">${services.map(x=>`<div class="pub-item"><strong>${esc(x.name||'Servicio')}</strong><div>${esc(x.detail||'')}</div>${x.notes?`<small>${esc(x.notes)}</small>`:''}</div>`).join('')}</div>`:'<p>No se registraron servicios adicionales.</p>')}
           ${section('Itinerario',itinerary.length?`<div class="pub-list">${itinerary.map(a=>{const url=safe(a.location_url);return `<div class="pub-item"><strong>${esc(fmt(a.activity_date))}${a.activity_time?' · '+esc(String(a.activity_time).slice(0,5)):''} — ${esc(a.title)}</strong>${a.description?`<div>${esc(a.description)}</div>`:''}${a.meeting_point?`<div>Lugar: ${esc(a.meeting_point)}</div>`:''}${url?`<div><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Abrir ubicación ↗</a></div>`:''}${a.notes?`<small>${esc(a.notes)}</small>`:''}</div>`}).join('')}</div>`:'<p>Itinerario pendiente de elaboración.</p>')}
           ${section('Estado de cuenta',`<div class="pub-money"><div><span>Total contratado</span><strong>${peso(total)}</strong></div><div><span>Pagado</span><strong>${peso(paid)}</strong></div><div><span>Saldo</span><strong>${peso(balance)}</strong></div></div>`)}
-          ${signed?`<div class="signed-card"><strong>Reserva aceptada y firmada</strong><div>Firmó: ${esc(r.signed_by||'Cliente')}</div><div>${esc(publicDateTime(r.signed_at))}</div></div>`:`<section class="sign-card"><h2 style="margin-top:0;color:${accent}">Aceptación y firma</h2><p>Confirma que revisaste los datos de la reserva, pasajeros, servicios e itinerario antes de firmar.</p><label>Nombre completo de quien firma<input id="publicSignerName" type="text" value="${esc(r.client_name||'')}" autocomplete="name"></label><label class="check-line"><input id="publicConfirmData" type="checkbox"> <span>Confirmo que revisé los datos mostrados y corresponden a la reserva acordada.</span></label><label class="check-line"><input id="publicAcceptTerms" type="checkbox"> <span>Acepto la confirmación de los servicios mostrados y las políticas y condiciones que me fueron proporcionadas por la agencia.</span></label><div class="signature-box"><canvas id="publicSignatureCanvas" width="760" height="220"></canvas></div><div class="sign-actions"><button class="btn ghost" type="button" id="publicSignatureClear">Limpiar firma</button><button class="btn primary" type="button" id="publicSignatureSubmit">Aceptar y firmar reserva</button></div><div class="sign-message" id="publicSignatureMessage"></div></section>`}
+          ${section('Políticas y condiciones generales',`<p>Estas políticas aplican a los servicios turísticos contratados con <strong>${esc(brandName)}</strong>. Versión: <strong>${TERMS_VERSION}</strong>.</p><p><a class="policy-link" href="${esc(policyPageURL(r))}" target="_blank" rel="noopener noreferrer">Leer políticas completas ↗</a></p><details class="policy-embed"><summary>Consultar las políticas sin salir de esta página</summary><iframe title="Políticas y condiciones de ${esc(brandName)}" src="${esc(policyPageURL(r))}" loading="lazy"></iframe></details>`)}
+          ${signed?`<div class="signed-card"><strong>Reserva aceptada y firmada</strong><div>Firmó: ${esc(r.signed_by||'Cliente')}</div><div>${esc(publicDateTime(r.signed_at))}</div><div>Políticas aceptadas: ${esc(r.accepted_terms_version||'Versión anterior no especificada')}</div></div>`:`<section class="sign-card"><h2 style="margin-top:0;color:${accent}">Aceptación y firma</h2><p>Confirma que revisaste los datos de la reserva, pasajeros, servicios e itinerario y lee las políticas completas antes de firmar.</p><label>Nombre completo de quien firma<input id="publicSignerName" type="text" value="${esc(r.client_name||'')}" autocomplete="name"></label><label class="check-line"><input id="publicConfirmData" type="checkbox"> <span>Confirmo que revisé los datos mostrados y corresponden a la reserva acordada.</span></label><label class="check-line"><input id="publicAcceptTerms" type="checkbox"> <span>He leído y acepto las Políticas y Condiciones Generales de ${esc(brandName)}, versión ${TERMS_VERSION}.</span></label><div class="signature-box"><canvas id="publicSignatureCanvas" width="760" height="220"></canvas></div><div class="sign-actions"><button class="btn ghost" type="button" id="publicSignatureClear">Limpiar firma</button><button class="btn primary" type="button" id="publicSignatureSubmit">Aceptar y firmar reserva</button></div><div class="sign-message" id="publicSignatureMessage"></div></section>`}
         </div>
         <footer class="pub-foot">Confirmación electrónica de reserva · Travel Ops by Nuve Works</footer>
       </main>`;
@@ -563,7 +634,7 @@
       btn.disabled=true;btn.textContent='Guardando firma…';
       try{
         const sb=await window.getSupabase();if(!sb)throw new Error('No se pudo conectar con el servicio.');
-        const {error}=await sb.rpc('confirm_shared_travelops_v3_reservation',{p_reservation_id:reservationId,p_token:token,p_signed_by:name,p_signature_data:canvas.toDataURL('image/png'),p_accept_terms:true,p_confirm_data:true,p_terms_version:'TO-V3-2026-10'});
+        const {error}=await sb.rpc('confirm_shared_travelops_v3_reservation',{p_reservation_id:reservationId,p_token:token,p_signed_by:name,p_signature_data:canvas.toDataURL('image/png'),p_accept_terms:true,p_confirm_data:true,p_terms_version:TERMS_VERSION});
         if(error)throw error;
         msg.style.color='#166534';msg.textContent='Reserva firmada correctamente.';
         setTimeout(()=>renderSharedReservationPage(reservationId,token),700);
@@ -591,7 +662,7 @@
       const sb = await window.getSupabase();
       if (!sb) throw new Error('Inicia sesión para consultar reservas.');
       const {data, error} = await sb.from('reservations')
-        .select('id,code,brand,client_name,destination,start_date,end_date,adults,minors,total_amount,status,hotel_service,v3_quote_id,v3_services_snapshot,v3_option_id,share_token,share_enabled,signed_by,signed_at,accepted_terms,client_confirmed_data')
+        .select('id,code,brand,client_name,destination,start_date,end_date,adults,minors,total_amount,status,hotel_service,v3_quote_id,v3_services_snapshot,v3_option_id,share_token,share_enabled,signed_by,signed_at,accepted_terms,accepted_terms_version,client_confirmed_data')
         .not('v3_quote_id','is',null).order('created_at',{ascending:false});
       if (error) throw error;
       records = data || [];
